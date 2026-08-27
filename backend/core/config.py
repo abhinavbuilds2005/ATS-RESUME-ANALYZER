@@ -23,7 +23,9 @@ DEFAULT_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     'https://appapppy-ktwxupi73vqhjzweksze9d.streamlit.app',
+    'https://elevatecv-ai.streamlit.app',
 ]
+
 
 raw_origins = os.getenv('ALLOWED_ORIGINS', '')
 if raw_origins:
