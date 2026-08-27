@@ -71,11 +71,10 @@ def analyze_full_resume(
             nlp=nlp,
         )
 
-    from backend.utils.file_utils import (
-        get_default_grammar_results, get_default_location_results,
-    )
-    grammar_results  = get_default_grammar_results()
+    from backend.services.ats_scorer import analyze_grammar_and_spelling
+    grammar_results  = analyze_grammar_and_spelling(resume_text, nlp)
     location_results = detect_location_info(resume_text, nlp)
+
 
     scores = calculate_overall_score(
         text=resume_text,

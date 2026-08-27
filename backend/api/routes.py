@@ -20,6 +20,8 @@ def _clean(text: str) -> str:
         text = text.lstrip(prefix)
     return text.strip()
 
+from starlette.concurrency import run_in_threadpool
+
 @router.post('/analyze-resume', response_model=AnalysisResponse)
 async def analyze_resume(
     request: Request,
@@ -29,10 +31,8 @@ async def analyze_resume(
 ):
     warnings: List[str] = []
 
-
-    nlp      = request.app.state.nlp
-    embedder = request.app.state.embedder
-
+    nlp      = getattr(request.app.state, 'nlp', None)
+    embedder = getattr(request.app.state, 'embedder', None)
 
     try:
         file_bytes = await resume.read()
@@ -44,29 +44,38 @@ async def analyze_resume(
             parse_resume_file,
         )
 
-        resume_text, _metadata = parse_resume_file(file_bytes, filename)
+        # Offload file parsing to threadpool to avoid blocking event loop
+        resume_text, _metadata = await run_in_threadpool(parse_resume_file, file_bytes, filename)
         logger.info(f"Parsed '{filename}': {len(resume_text)} chars extracted")
 
     except (FileValidationError, FileParsingError) as exc:
-        logger.error(f'File parsing failed: {exc}')
+        logger.warning(f'File validation/parsing failed for {resume.filename}: {exc}')
         raise HTTPException(
             status_code=422,
             detail=getattr(exc, 'user_message', str(exc)),
         )
+    except Exception as exc:
+        logger.error(f'Unexpected error during file upload: {exc}')
+        raise HTTPException(
+            status_code=400,
+            detail='Invalid file upload. Please ensure your file is a valid PDF or DOCX format.'
+        )
 
-    #Full Analysis Pipeline 
+    # Full Analysis Pipeline offloaded to threadpool
     try:
         from backend.services.resume_analyzer import analyze_full_resume
         
-        result = analyze_full_resume(
+        result = await run_in_threadpool(
+            analyze_full_resume,
             resume_text=resume_text,
             nlp=nlp,
             embedder=embedder,
             job_description=job_description
         )
     except Exception as exc:
-        logger.error(f'Full analysis pipeline failed: {exc}')
+        logger.error(f'Full analysis pipeline failed: {exc}', exc_info=True)
         raise HTTPException(status_code=500, detail='Analysis pipeline failed. Please try again later.')
+
 
     from backend.models.schemas import ComponentScores
 
@@ -174,8 +183,11 @@ async def generate_pdf(
     from fastapi.responses import Response
 
     try:
-        html_docs = generate_html_reports(data.model_dump())
-        pdf_bytes = generate_combined_pdf(html_docs)
+        def _build_pdf():
+            html_docs = generate_html_reports(data.model_dump())
+            return generate_combined_pdf(html_docs)
+
+        pdf_bytes = await run_in_threadpool(_build_pdf)
 
         return Response(
             content=pdf_bytes,
@@ -206,8 +218,11 @@ async def generate_history_pdf(
         raise HTTPException(status_code=404, detail="Analysis not found")
 
     try:
-        html_docs = generate_html_reports(analysis_data)
-        pdf_bytes = generate_combined_pdf(html_docs)
+        def _build_pdf():
+            html_docs = generate_html_reports(analysis_data)
+            return generate_combined_pdf(html_docs)
+
+        pdf_bytes = await run_in_threadpool(_build_pdf)
 
         return Response(
             content=pdf_bytes,

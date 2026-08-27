@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 from typing import Dict, List, Optional, Tuple
 
 from backend.utils.file_utils import log_warning
-from backend.core.config import SENTENCE_TRANSFORMER_MODEL
+from backend.core.config import SCORE_WEIGHTS, SENTENCE_TRANSFORMER_MODEL
 from backend.utils.matching import fuzzy_match_keywords
 
 ZIP_CODE_PATTERN = r'\b\d{5}(?:-\d{4})?\b'
@@ -14,6 +14,117 @@ STREET_ADDRESS_PATTERN = (
     r'\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+'
     r'(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way|Place|Pl)\b'
 )
+
+# Common resume typos for deterministic spell-checking
+COMMON_TYPOS = {
+    'recieve': 'receive',
+    'recieved': 'received',
+    'seperate': 'separate',
+    'seperated': 'separated',
+    'managment': 'management',
+    'expereince': 'experience',
+    'responsibilites': 'responsibilities',
+    'responsbility': 'responsibility',
+    'achievment': 'achievement',
+    'achievments': 'achievements',
+    'develope': 'develop',
+    'developement': 'development',
+    'referance': 'reference',
+    'referances': 'references',
+    'occured': 'occurred',
+    'sucessful': 'successful',
+    'sucessfully': 'successfully',
+    'enviroment': 'environment',
+    'definately': 'definitely',
+}
+
+def analyze_grammar_and_spelling(text: str, nlp: Optional[spacy.Language] = None) -> Dict:
+    """
+    Perform deterministic, lightweight grammar, spelling, and text quality analysis.
+    Identifies repeated words, common spelling mistakes, punctuation glitches, and sentence anomalies.
+    """
+    if not text or not text.strip():
+        return {
+            'total_errors': 0,
+            'critical_errors': [],
+            'moderate_errors': [],
+            'minor_errors': [],
+            'grammar_score': 100.0,
+            'penalty_applied': 0.0,
+            'error_free_percentage': 100.0,
+            '_component_status': 'available',
+            '_note': 'Empty text evaluated.',
+        }
+
+    critical_errors = []
+    moderate_errors = []
+    minor_errors = []
+
+    # 1. Check for common typos
+    for typo, correction in COMMON_TYPOS.items():
+        pattern = r'\b' + re.escape(typo) + r'\b'
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            critical_errors.append({
+                'error_text': match.group(),
+                'suggestions': [correction],
+                'message': f"Spelling error: '{match.group()}' is misspelled.",
+                'position': match.start(),
+                'severity': 'critical',
+            })
+
+    # 2. Check for repeated consecutive words (e.g., "in in", "the the", "with with")
+    repeated_word_pattern = r'\b([A-Za-z]{2,})\s+\1\b'
+    for match in re.finditer(repeated_word_pattern, text, re.IGNORECASE):
+        # Ignore common natural doubles like "that that" or "had had"
+        word = match.group(1).lower()
+        if word not in ('that', 'had'):
+            moderate_errors.append({
+                'error_text': match.group(),
+                'suggestions': [match.group(1)],
+                'message': f"Repeated word: '{match.group()}' appears consecutively.",
+                'position': match.start(),
+                'severity': 'moderate',
+            })
+
+    # 3. Check for double punctuation anomalies (e.g. ",,", "..", ";;")
+    double_punct_pattern = r'([,;:])\s*\1+'
+    for match in re.finditer(double_punct_pattern, text):
+        minor_errors.append({
+            'error_text': match.group(),
+            'suggestions': [match.group(1)],
+            'message': f"Punctuation anomaly: consecutive '{match.group()}' detected.",
+            'position': match.start(),
+            'severity': 'minor',
+        })
+
+    # 4. Check for unmatched brackets or parentheses
+    for open_b, close_b in [('(', ')'), ('[', ']'), ('{', '}')]:
+        open_count = text.count(open_b)
+        close_count = text.count(close_b)
+        if open_count != close_count:
+            minor_errors.append({
+                'error_text': f"{open_b}...{close_b}",
+                'suggestions': [],
+                'message': f"Mismatched {open_b}{close_b}: found {open_count} opening and {close_count} closing.",
+                'position': 0,
+                'severity': 'minor',
+            })
+
+    total_errors = len(critical_errors) + len(moderate_errors) + len(minor_errors)
+    penalty = min(10.0, len(critical_errors) * 2.0 + len(moderate_errors) * 1.0 + len(minor_errors) * 0.5)
+    grammar_score = max(0.0, 100.0 - penalty * 10.0)
+
+    return {
+        'total_errors': total_errors,
+        'critical_errors': critical_errors,
+        'moderate_errors': moderate_errors,
+        'minor_errors': minor_errors,
+        'grammar_score': grammar_score,
+        'penalty_applied': penalty,
+        'error_free_percentage': max(0.0, 100.0 - total_errors * 5.0),
+        '_component_status': 'available',
+        '_note': 'Rule-based grammar and spelling check completed.',
+    }
 
 def _tier_score(n: float, tiers:list)-> float:
     for threshold, pts in tiers:
@@ -56,13 +167,13 @@ def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
 
     recommendations = []
     if not locations:
-        recommendations.append(" No privacy concerns detected.")
+        recommendations.append("No privacy concerns detected.")
     if has_address:
-        recommendations.append(" Remove full street addresses — ATS systems don't need this and it's a privacy risk.")
+        recommendations.append("Remove full street addresses — ATS systems don't need this and it's a privacy risk.")
     if has_zip:
-        recommendations.append(" Remove zip codes — this level of location detail is unnecessary.")
+        recommendations.append("Remove zip codes — this level of location detail is unnecessary.")
     if privacy_risk in ('low', 'medium') and not has_address and not has_zip:
-        recommendations.append(" Consider reducing location mentions. 'City, State' in the contact header is sufficient.")
+        recommendations.append("Consider reducing location mentions. 'City, State' in the contact header is sufficient.")
 
     return {
         'location_found':     len(locations) > 0,
@@ -72,40 +183,17 @@ def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
         'penalty_applied':    penalty,
     }
 
-def _calculate_semantic_similarity(skill: str, text: str, embedder: SentenceTransformer) -> float:
-    #similarity = (A · B) / (|A| × |B|)
-    if not skill or not text:
+def _calculate_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    """Fast cosine similarity between two precomputed vectors."""
+    if vec1 is None or vec2 is None:
         return 0.0
-    try:
-        skill_vec  = embedder.encode(skill, convert_to_tensor=False)
-        text_vec   = embedder.encode(text,  convert_to_tensor=False)
-
-        skill_norm = np.linalg.norm(skill_vec)
-        text_norm = np.linalg.norm(text_vec)
-        if skill_norm == 0 or text_norm == 0:
-            return 0.0
-        similarity = np.dot(skill_vec, text_vec) / (skill_norm * text_norm)
-
-        return float(max(0.0, min(1.0, similarity)))
-    except Exception as e:
-        log_warning(f"Similarity error for '{skill}': {e}", context='ats_scorer')
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+    if norm1 == 0 or norm2 == 0:
         return 0.0
+    return float(max(0.0, min(1.0, np.dot(vec1, vec2) / (norm1 * norm2))))
 
-def _skill_matches(skill: str, text: str, embedder: SentenceTransformer, threshold: float) -> Tuple[bool, float]:
-    if not skill or not text:
-        return False, 0.0
-
-    # Fast check: word-boundary match (case-insensitive) to prevent substring false positives
-    # (e.g. 'c' in 'experience', 'go' in 'algorithm', 'r' in 'engineer')
-    pattern = r'(?:\b|_)' + re.escape(skill.strip()) + r'(?:\b|_)'
-    if re.search(pattern, text, re.IGNORECASE):
-        return True, 1.0
-
-    # Semantic similarity check using sentence embeddings
-    sim = _calculate_semantic_similarity(skill, text, embedder)
-    return sim >= threshold, sim
-
-#Skill validation
+#Skill validation with precomputed embeddings for performance
 def validate_skills_with_projects(
     skills: List[str],
     projects: List[Dict],
@@ -129,36 +217,71 @@ def validate_skills_with_projects(
         if isinstance(e, dict)
     ).strip()
 
+    # Pre-extract and pre-encode project texts ONCE
+    project_items = []
+    for project in projects:
+        title = project.get('title', 'Untitled Project')
+        p_text = f"{project.get('title', '')} {project.get('description', '')}".strip()
+        p_vec = embedder.encode(p_text, convert_to_tensor=False) if p_text else None
+        project_items.append({
+            'title': title,
+            'text': p_text,
+            'vector': p_vec,
+        })
+
+    # Pre-encode experience text ONCE
+    exp_vec = embedder.encode(experience_text, convert_to_tensor=False) if experience_text else None
+
     validated_skills      = []
     unvalidated_skills    = []
     skill_project_mapping = {}
 
     for skill in skills:
+        if not skill or not skill.strip():
+            continue
+        skill_clean = skill.strip()
         matching_projects = []
         max_similarity    = 0.0
 
-        for project in projects:
-            project_text = f"{project.get('title', '')} {project.get('description', '')}"
-            matched, sim = _skill_matches(skill, project_text, embedder, threshold)
-            max_similarity = max(max_similarity, sim)
+        # Fast word-boundary check pattern
+        pattern = r'(?:\b|_)' + re.escape(skill_clean) + r'(?:\b|_)'
+        skill_vec = None  # Lazily compute skill embedding only if fast regex didn't match everything
 
-            if matched:
-                matching_projects.append(project.get('title', 'Untitled Project'))
+        for p_item in project_items:
+            # 1. Fast regex match
+            if p_item['text'] and re.search(pattern, p_item['text'], re.IGNORECASE):
+                matching_projects.append(p_item['title'])
+                max_similarity = max(max_similarity, 1.0)
+            elif p_item['vector'] is not None:
+                # 2. Semantic embedding check
+                if skill_vec is None:
+                    skill_vec = embedder.encode(skill_clean, convert_to_tensor=False)
+                sim = _calculate_cosine_similarity(skill_vec, p_item['vector'])
+                max_similarity = max(max_similarity, sim)
+                if sim >= threshold:
+                    matching_projects.append(p_item['title'])
 
         if experience_text:
-            matched, sim = _skill_matches(skill, experience_text, embedder, threshold)
-            max_similarity = max(max_similarity, sim)
-            if matched and 'Experience Section' not in matching_projects:
-                matching_projects.append('Experience Section')
+            if re.search(pattern, experience_text, re.IGNORECASE):
+                max_similarity = max(max_similarity, 1.0)
+                if 'Experience Section' not in matching_projects:
+                    matching_projects.append('Experience Section')
+            elif exp_vec is not None:
+                if skill_vec is None:
+                    skill_vec = embedder.encode(skill_clean, convert_to_tensor=False)
+                sim = _calculate_cosine_similarity(skill_vec, exp_vec)
+                max_similarity = max(max_similarity, sim)
+                if sim >= threshold and 'Experience Section' not in matching_projects:
+                    matching_projects.append('Experience Section')
 
         if matching_projects:
-            validated_skills.append({'skill': skill, 'projects': matching_projects, 'similarity': max_similarity})
-            skill_project_mapping[skill] = matching_projects
+            validated_skills.append({'skill': skill_clean, 'projects': matching_projects, 'similarity': max_similarity})
+            skill_project_mapping[skill_clean] = matching_projects
         else:
-            unvalidated_skills.append(skill)
-            skill_project_mapping[skill] = []
+            unvalidated_skills.append(skill_clean)
+            skill_project_mapping[skill_clean] = []
 
-    validation_percentage = len(validated_skills) / len(skills)
+    validation_percentage = len(validated_skills) / len(skills) if skills else 0.0
     validation_score      = validation_percentage * 15.0
 
     return {
@@ -168,6 +291,7 @@ def validate_skills_with_projects(
         'skill_project_mapping': skill_project_mapping,
         'validation_score':      validation_score,
     }
+
 
 #01: formatting score
 def _calc_formatting_score(parsed_resume: Dict, text: str) -> float:
@@ -309,30 +433,24 @@ def calculate_overall_score(
     experience_months: int = 0,
 ) -> Dict:
 
-    formatting_score        = _calc_formatting_score(parsed_resume, text)
-    keywords_score          = _calc_keywords_score(keywords, skills, jd_keywords)
-    content_score           = _calc_content_score(text, action_verbs, grammar_results)
-    skill_validation_score  = _calc_skill_validation_score(skill_validation_results)
-    ats_compatibility_score = _calc_ats_compatibility_score(text, location_results, parsed_resume)
+    formatting_max = float(SCORE_WEIGHTS.get('formatting', 20.0))
+    keywords_max = float(SCORE_WEIGHTS.get('keywords', 25.0))
+    content_max = float(SCORE_WEIGHTS.get('content', 25.0))
+    skill_validation_max = float(SCORE_WEIGHTS.get('skill_validation', 15.0))
+    ats_compatibility_max = float(SCORE_WEIGHTS.get('ats_compatibility', 15.0))
 
-    COMPONENT_MAX = {
-        'formatting': 20.0, 'keywords': 25.0, 'content': 25.0,
-        'skill_validation': 15.0, 'ats_compatibility': 15.0,
-    }
-
-    formatting_pct        = (formatting_score        / COMPONENT_MAX['formatting'])        * 100.0
-    keywords_pct          = (keywords_score          / COMPONENT_MAX['keywords'])          * 100.0
-    content_pct           = (content_score           / COMPONENT_MAX['content'])           * 100.0
-    skill_validation_pct  = (skill_validation_score  / COMPONENT_MAX['skill_validation'])  * 100.0
-    ats_compatibility_pct = (ats_compatibility_score / COMPONENT_MAX['ats_compatibility']) * 100.0
-
-    skills_keywords_pct = (keywords_pct * 0.6) + (skill_validation_pct * 0.4)
+    formatting_score        = min(formatting_max, max(0.0, _calc_formatting_score(parsed_resume, text)))
+    keywords_score          = min(keywords_max, max(0.0, _calc_keywords_score(keywords, skills, jd_keywords)))
+    content_score           = min(content_max, max(0.0, _calc_content_score(text, action_verbs, grammar_results)))
+    skill_validation_score  = min(skill_validation_max, max(0.0, _calc_skill_validation_score(skill_validation_results)))
+    ats_compatibility_score = min(ats_compatibility_max, max(0.0, _calc_ats_compatibility_score(text, location_results, parsed_resume)))
 
     base_score = (
-        skills_keywords_pct   * 0.40 +
-        content_pct           * 0.30 +
-        formatting_pct        * 0.15 +
-        ats_compatibility_pct * 0.15
+        formatting_score +
+        keywords_score +
+        content_score +
+        skill_validation_score +
+        ats_compatibility_score
     )
 
     penalties = {}
@@ -353,7 +471,7 @@ def calculate_overall_score(
         bonuses['good_skill_validation'] = 1.0
         score += 1.0
 
-    if grammar_results.get('total_errors', 0) == 0:
+    if grammar_results.get('_component_status') == 'available' and grammar_results.get('total_errors', 0) == 0:
         bonuses['perfect_grammar'] = 1.0
         score += 1.0
 
@@ -384,7 +502,8 @@ def calculate_overall_score(
         'ats_compatibility_score': round(ats_compatibility_score, 1),
         'overall_interpretation':  interpretation,
         'penalties':               penalties,
-        'bonuses':                 bonuses,}
+        'bonuses':                 bonuses,
+    }
 
 #Overall score calculation and interpretation
 def generate_strengths(
@@ -396,18 +515,18 @@ def generate_strengths(
     strengths = []
 
     if score_results['formatting_score']       >= 16:
-        strengths.append(' Well-structured with clear sections and bullet points')
+        strengths.append('Well-structured with clear sections and bullet points')
     if score_results['keywords_score']          >= 20:
-        strengths.append(' Strong keyword optimization and skills presence')
+        strengths.append('Strong keyword optimization and skills presence')
     if score_results['content_score']           >= 20:
-        strengths.append(' Excellent use of action verbs and quantifiable achievements')
+        strengths.append('Excellent use of action verbs and quantifiable achievements')
     if score_results['skill_validation_score']  >= 12:
         pct = skill_validation_results.get('validation_percentage', 0) * 100
-        strengths.append(f' {pct:.0f}% of skills are validated by projects')
+        strengths.append(f'{pct:.0f}% of skills are validated by projects')
     if score_results['ats_compatibility_score'] >= 13:
-        strengths.append(' Excellent ATS compatibility with clean formatting')
-    if grammar_results.get('total_errors', 0)   == 0:
-        strengths.append(' Error-free grammar and spelling')
+        strengths.append('Excellent ATS compatibility with clean formatting')
+    if grammar_results.get('_component_status') == 'available' and grammar_results.get('total_errors', 0) == 0:
+        strengths.append('Error-free grammar and spelling')
 
     if not strengths:
         strengths.append('Your resume has potential - focus on the recommendations below')

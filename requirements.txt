@@ -26,12 +26,12 @@ rapidfuzz>=3.6
 # ── Backend: file parsing ──
 pdfplumber>=0.11
 PyPDF2>=3.0
+pypdf>=4.0
 python-docx>=1.1
-python-magic>=0.4.27
 
 # ── Backend: PDF report generation ──
 jinja2>=3.1
-weasyprint>=60.0
+weasyprint>=60.0; sys_platform != "win32"
 xhtml2pdf>=0.2.15
 reportlab>=4.0.0
 
@@ -44,3 +44,7 @@ PyJWT[crypto]>=2.8           # verifies Supabase access tokens (HS256)
 streamlit>=1.32
 requests>=2.31
 supabase>=2.4                # frontend auth client (email/password + OAuth)
+
+# ── Testing ──
+pytest>=8.0
+

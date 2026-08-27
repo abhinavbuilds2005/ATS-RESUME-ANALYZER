@@ -23,35 +23,44 @@ from backend.core.config import (
 class FileValidationError(Exception):
     pass
 
-def validate_file(file_data:bytes, filename:str)->Tuple[bool, str, Optional[str]]:
+def validate_file(file_data: bytes, filename: str) -> Tuple[bool, str, Optional[str]]:
     file_size_bytes = len(file_data)
+    if file_size_bytes == 0:
+        return False, 'Uploaded file is empty. Please check the file and try again.', None
+
     if file_size_bytes > MAX_FILE_SIZE_BYTES:
         size_mb = file_size_bytes / (1024 * 1024)
         return False, (
-            f'File size ({size_mb:.2f} MB) exceeds the maximum of {MAX_FILE_SIZE_MB} MB. '
+            f'File size ({size_mb:.2f} MB) exceeds the maximum allowed size of {MAX_FILE_SIZE_MB} MB. '
             'Please upload a smaller file or compress your resume.'
         ), None
-    
-    if file_size_bytes == 0:
-        return False, 'Uploaded file is empty. Please check the file you have uploaded and try again.', None
-    
+
+    # Check extension
+    ext = ''
+    if filename and '.' in filename:
+        ext = '.' + filename.rsplit('.', 1)[-1].lower()
+
+    if ext == '.doc':
+        return False, (
+            'Legacy .doc format is not supported. '
+            'Please save or convert your document to .docx or .pdf and try again.'
+        ), None
+
     if file_data.startswith(b'%PDF-'):
         mime_type = 'application/pdf'
     elif file_data.startswith(b'PK\x03\x04'):
         mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     else:
         mime_type = 'application/octet-stream'
-    
+
     if mime_type not in SUPPORTED_MIME_TYPES:
-        supported=', '.join(SUPPORTED_MIME_TYPES.keys()).upper()
         return False, (
-            f'Unsupported file type: {mime_type}. '
-            f'Please upload one of: {supported}.'
+            'Unsupported or invalid file format. '
+            'Please upload a valid PDF (.pdf) or Word document (.docx).'
         ), None
-    
-    
 
     return True, '', SUPPORTED_MIME_TYPES[mime_type]
+
 
 def _extract_pdf_hyperlinks(file_data: bytes) -> str:
     urls = []
@@ -198,19 +207,18 @@ def extract_text_from_doc(file_data: bytes) -> str:
         'You can convert using Microsoft Word, Google Docs, or online tools.'
     )
 
-def extract_text(file_data:bytes, file_type:str)->str:
-    if file_type=='pdf':
+def extract_text(file_data: bytes, file_type: str) -> str:
+    if file_type == 'pdf':
         return extract_text_from_pdf(file_data)
-    elif file_type=='docx':
+    elif file_type == 'docx':
         return extract_text_from_docx(file_data)
-    elif file_type=='doc':
+    elif file_type == 'doc':
         return extract_text_from_doc(file_data)
     else:
         raise FileValidationError(
-            f'invalid file type: {file_type}. supported types are: pdf, docx and doc'
-
-
+            f'Invalid file type: {file_type}. Supported types are: PDF (.pdf) and Word (.docx)'
         )
+
     
 def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
     log_info(f'parsing file :{filename}', context='parse_Resume_file')

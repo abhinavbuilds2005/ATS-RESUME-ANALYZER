@@ -20,7 +20,12 @@ try:
     from pypdf import PdfWriter
     PYPDF_INSTALLED = True
 except ImportError:
-    PYPDF_INSTALLED = False
+    try:
+        from PyPDF2 import PdfWriter
+        PYPDF_INSTALLED = True
+    except ImportError:
+        PYPDF_INSTALLED = False
+
 
 
 def generate_combined_pdf(html_docs: Dict[str, str]) -> bytes:

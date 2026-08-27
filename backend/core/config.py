@@ -16,8 +16,23 @@ APP_TITLE='ATS RESUME ANALYZER API'
 APP_VERSION='1.0.0'
 APP_DESCRIPTION='analyse resumes against job description using nlp + ml'
 
-raw_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:8501,http://127.0.0.1:8501,https://appapppy-ktwxupi73vqhjzweksze9d.streamlit.app/')
-ALLOWED_ORIGINS = [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
+DEFAULT_ORIGINS = [
+    'http://localhost:8501',
+    'http://127.0.0.1:8501',
+    'http://localhost:3000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'https://appapppy-ktwxupi73vqhjzweksze9d.streamlit.app',
+]
+
+raw_origins = os.getenv('ALLOWED_ORIGINS', '')
+if raw_origins:
+    configured_origins = [origin.strip().rstrip('/') for origin in raw_origins.split(',') if origin.strip()]
+    # Combine with default local origins to ensure local dev doesn't break
+    ALLOWED_ORIGINS = list(dict.fromkeys(DEFAULT_ORIGINS + configured_origins))
+else:
+    ALLOWED_ORIGINS = DEFAULT_ORIGINS
+
 
 #file 
 MAX_FILE_SIZE_MB=5

@@ -21,24 +21,47 @@ async def lifespan(app:FastAPI):
 
     logger.info(f'Loading spaCy NLP model: {SPACY_MODEL_PRIMARY}')
     import spacy
+    nlp = None
     try:
-        app.state.nlp = spacy.load(SPACY_MODEL_PRIMARY)
+        nlp = spacy.load(SPACY_MODEL_PRIMARY)
         logger.info(f'Loaded {SPACY_MODEL_PRIMARY}')
     except OSError:
-        logger.warning(f'{SPACY_MODEL_PRIMARY} not found — falling back to {SPACY_MODEL_SECONDARY}')
-        app.state.nlp = spacy.load(SPACY_MODEL_SECONDARY)
-        logger.info(f'Loaded {SPACY_MODEL_SECONDARY} (fallback)')
+        logger.warning(f'{SPACY_MODEL_PRIMARY} not found locally. Attempting automatic download...')
+        try:
+            spacy.cli.download(SPACY_MODEL_PRIMARY)
+            nlp = spacy.load(SPACY_MODEL_PRIMARY)
+            logger.info(f'Downloaded and loaded {SPACY_MODEL_PRIMARY}')
+        except Exception as exc:
+            logger.warning(f'Could not load or download {SPACY_MODEL_PRIMARY}: {exc}. Trying fallback: {SPACY_MODEL_SECONDARY}')
+            try:
+                nlp = spacy.load(SPACY_MODEL_SECONDARY)
+                logger.info(f'Loaded {SPACY_MODEL_SECONDARY} (fallback)')
+            except OSError:
+                try:
+                    spacy.cli.download(SPACY_MODEL_SECONDARY)
+                    nlp = spacy.load(SPACY_MODEL_SECONDARY)
+                    logger.info(f'Downloaded and loaded {SPACY_MODEL_SECONDARY} (fallback)')
+                except Exception as exc2:
+                    logger.error(f'Failed to load secondary model {SPACY_MODEL_SECONDARY}: {exc2}. Initializing basic English pipeline...')
+                    nlp = spacy.blank('en')
+
+    app.state.nlp = nlp
 
     logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
     from sentence_transformers import SentenceTransformer
-    app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
-    logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
+    try:
+        app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
+        logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
+    except Exception as exc:
+        logger.error(f'Error loading SentenceTransformer ({SENTENCE_TRANSFORMER_MODEL}): {exc}')
+        raise exc
 
     logger.info('All models loaded. API is ready to serve requests.')
 
     yield
 
-    logger.info('shutting down the api!!')
+    logger.info('Shutting down the API.')
+
 
 app=FastAPI(
     title=APP_TITLE, 

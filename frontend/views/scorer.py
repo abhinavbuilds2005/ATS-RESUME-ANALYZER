@@ -30,9 +30,11 @@ def _read_jd(jd_file, jd_text: str) -> str:
 
 
 def _show_backend_error(exc: Exception) -> None:
-    """Translate a `requests` exception into a friendly Streamlit error."""
-    if isinstance(exc, requests.ConnectionError):
-        st.error("Could not reach the backend. Is `uvicorn backend.main:app` running on port 8000?")
+    """Translate a backend or network exception into a friendly Streamlit error."""
+    if isinstance(exc, api_client.BackendConfigError):
+        st.error(f"⚠️ Configuration Error: {exc}")
+    elif isinstance(exc, requests.ConnectionError):
+        st.error("Could not reach the backend API. If running locally, start the backend with `uvicorn backend.main:app --port 8000`.")
     elif isinstance(exc, requests.Timeout):
         st.error("The backend took too long to respond. Try a smaller resume or check the server logs.")
     elif isinstance(exc, requests.HTTPError) and exc.response is not None:
@@ -43,6 +45,7 @@ def _show_backend_error(exc: Exception) -> None:
         st.error(f"Backend returned {exc.response.status_code}: {detail}")
     else:
         st.error(f"Unexpected error: {exc}")
+
 
 
 def _summary_text(analysis: dict) -> str:

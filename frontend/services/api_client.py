@@ -1,17 +1,55 @@
+import os
 from typing import Any, Dict, List
 
 import requests
 import streamlit as st
 
+DEFAULT_LOCAL_URL = "http://localhost:8000"
 
-DEFAULT_BACKEND_URL = "http://localhost:8000"
-
+class BackendConfigError(Exception):
+    """Raised when backend URL is missing in production environments."""
+    pass
 
 def _backend_url() -> str:
+    """
+    Resolve the backend URL with priority:
+    1. BACKEND_URL environment variable
+    2. API_URL environment variable
+    3. st.secrets["backend"]["url"]
+    4. st.secrets["BACKEND_URL"]
+    5. Localhost fallback (only if local)
+    """
+    # 1. Check environment variables
+    env_url = os.getenv("BACKEND_URL") or os.getenv("API_URL")
+    if env_url:
+        return env_url.strip().rstrip('/')
+
+    # 2. Check Streamlit secrets
     try:
-        return st.secrets["backend"]["url"]
-    except (KeyError, FileNotFoundError):
-        return DEFAULT_BACKEND_URL
+        if "backend" in st.secrets and "url" in st.secrets["backend"]:
+            return str(st.secrets["backend"]["url"]).strip().rstrip('/')
+        if "BACKEND_URL" in st.secrets:
+            return str(st.secrets["BACKEND_URL"]).strip().rstrip('/')
+        if "API_URL" in st.secrets:
+            return str(st.secrets["API_URL"]).strip().rstrip('/')
+    except Exception:
+        pass
+
+    # 3. Detect if running in production without configuration
+    is_production = (
+        os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
+        or os.getenv("STREAMLIT_SHARING_HOST") is not None
+        or os.getenv("RENDER") is not None
+    )
+
+    if is_production:
+        raise BackendConfigError(
+            "Backend URL is not configured. Please set 'BACKEND_URL' in your "
+            "deployment environment variables or .streamlit/secrets.toml."
+        )
+
+    return DEFAULT_LOCAL_URL
+
 
 
 def _auth_headers(access_token: str) -> Dict[str, str]:

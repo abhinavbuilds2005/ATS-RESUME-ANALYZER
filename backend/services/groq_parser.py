@@ -1,7 +1,9 @@
 import os
+import re
 import json 
 import logging
-from typing import Dict
+from typing import Dict, Optional, Any
+
 
 from groq import Groq
 
@@ -17,7 +19,7 @@ def _get_client() -> Groq:
         api_key = GROQ_API_KEY or os.getenv('GROQ_API_KEY')
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable not set")
-        _client = Groq(api_key=api_key)
+        _client = Groq(api_key=api_key, timeout=30.0)
     return _client
 
 RESUME_SYSTEM_PROMPT = (
@@ -75,7 +77,7 @@ Resume Text:
 
 def _call_groq(client: Groq, system_prompt: str, user_prompt: str) -> str:
     candidates = [GROQ_MODEL] if GROQ_MODEL else []
-    for fallback in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768"]:
+    for fallback in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-70b-versatile", "gemma2-9b-it"]:
         if fallback not in candidates:
             candidates.append(fallback)
 
@@ -102,49 +104,110 @@ def _call_groq(client: Groq, system_prompt: str, user_prompt: str) -> str:
     raise RuntimeError("No Groq models available to complete request.")
 
 def _try_parse_json(text: str) -> dict | None:
+    if not text or not isinstance(text, str):
+        return None
 
-    # Strip markdown code fences if present
     cleaned = text.strip()
-    if cleaned.startswith("```"):
 
-        # Remove opening fence (```json or ```)
-        first_newline = cleaned.index("\n") if "\n" in cleaned else len(cleaned)
-        cleaned = cleaned[first_newline + 1:]
-        # Remove closing fence
+    # 1. Strip markdown code fences if present
+    if cleaned.startswith("```"):
+        first_newline = cleaned.find("\n")
+        if first_newline != -1:
+            cleaned = cleaned[first_newline + 1:]
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]
         cleaned = cleaned.strip()
 
+    # 2. Try direct json.loads
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        return None
-    
+        pass
+
+    # 3. Try finding outermost JSON object between first { and last }
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        try:
+            return json.loads(cleaned[first_brace:last_brace + 1])
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def _fallback_parse_resume(raw_text: str) -> Dict:
+    """Deterministic heuristic fallback when Groq is unavailable or fails."""
+    logger.warning("Using heuristic fallback parser for resume.")
+    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', raw_text)
+    phones = re.findall(r'\(?\+?\d{1,3}\)?[-.\s]?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}', raw_text)
+    linkedin = re.findall(r'linkedin\.com/in/[\w\-]+', raw_text, re.IGNORECASE)
+    github = re.findall(r'github\.com/[\w\-]+', raw_text, re.IGNORECASE)
+
+    common_skills = [
+        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
+        "react", "angular", "vue", "node.js", "express", "fastapi", "django", "flask",
+        "sql", "postgresql", "mysql", "mongodb", "redis", "docker", "kubernetes",
+        "aws", "gcp", "azure", "git", "linux", "machine learning", "deep learning",
+        "nlp", "data analysis", "html", "css", "tailwind", "rest api", "graphql"
+    ]
+    raw_lower = raw_text.lower()
+    found_skills = [s.title() for s in common_skills if re.search(r'\b' + re.escape(s) + r'\b', raw_lower)]
+
+    common_verbs = [
+        "developed", "implemented", "designed", "built", "created", "led", "managed",
+        "optimized", "automated", "improved", "reduced", "increased", "deployed",
+        "engineered", "architected", "collaborated", "launched", "analyzed"
+    ]
+    found_verbs = [v.title() for v in common_verbs if re.search(r'\b' + re.escape(v) + r'\b', raw_lower)]
+
+    # Guess name from first non-empty line
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    name = lines[0] if lines and len(lines[0].split()) <= 4 else ""
+
+    result = {
+        "name": name,
+        "email": emails[0] if emails else None,
+        "phone": phones[0] if phones else None,
+        "linkedin": linkedin[0] if linkedin else None,
+        "github": github[0] if github else None,
+        "professional_summary": "",
+        "skills": found_skills,
+        "experience": [],
+        "education": [],
+        "certifications": [],
+        "projects": [],
+        "action_verbs": found_verbs,
+        "keywords": found_skills[:15],
+    }
+    return _validate_resume_result(result)
+
 def parse_resume(raw_text: str)->Dict:
+    try:
+        client = _get_client()
+        prompt = RESUME_USER_PROMPT.format(raw_text=raw_text)
+        raw_response = _call_groq(client, RESUME_SYSTEM_PROMPT, prompt)
+        result = _try_parse_json(raw_response)
 
-    client=_get_client()
-    prompt=RESUME_USER_PROMPT.format(raw_text=raw_text)
-    raw_response=_call_groq(client, RESUME_SYSTEM_PROMPT, prompt)
-    result=_try_parse_json(raw_response)
+        if result is not None:
+            return _validate_resume_result(result)
 
-    if result is not None:
-        return _validate_resume_result(result)
-    
+        logger.warning("Groq resume parse: first attempt returned invalid JSON, retrying...")
+        strict_prompt = (
+            "Your previous response was not valid JSON. "
+            "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
+            + prompt
+        )
+        raw_response = _call_groq(client, RESUME_SYSTEM_PROMPT, strict_prompt)
+        result = _try_parse_json(raw_response)
+        if result is not None:
+            return _validate_resume_result(result)
+    except Exception as exc:
+        logger.warning(f"Groq parse_resume encountered error: {exc}. Using fallback parser...")
+        return _fallback_parse_resume(raw_text)
 
-    logger.warning("Groq resume parse: first attempt returned invalid JSON, retrying...")
-    strict_prompt = (
-        "Your previous response was not valid JSON. "
-        "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
-        + prompt
-    )
-    raw_response = _call_groq(client, RESUME_SYSTEM_PROMPT, strict_prompt)
-    result = _try_parse_json(raw_response)
-    if result is not None:
-        return _validate_resume_result(result)
+    return _fallback_parse_resume(raw_text)
 
-    raise ValueError(
-        f"Groq returned unparseable response after retry. Raw response:\n{raw_response[:500]}"
-    )
     
 JD_SYSTEM_PROMPT = (
     "You are a job description parser. Extract information and "
@@ -172,29 +235,59 @@ Important instructions:
 Job Description Text:
 {raw_text}"""
 
+def _fallback_parse_jd(raw_text: str) -> Dict:
+    """Deterministic heuristic fallback when Groq is unavailable or fails for JD."""
+    logger.warning("Using heuristic fallback parser for job description.")
+    common_skills = [
+        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
+        "react", "angular", "vue", "node.js", "express", "fastapi", "django", "flask",
+        "sql", "postgresql", "mysql", "mongodb", "redis", "docker", "kubernetes",
+        "aws", "gcp", "azure", "git", "linux", "machine learning", "deep learning",
+        "nlp", "data analysis", "html", "css", "tailwind", "rest api", "graphql"
+    ]
+    raw_lower = raw_text.lower()
+    found_skills = [s.title() for s in common_skills if re.search(r'\b' + re.escape(s) + r'\b', raw_lower)]
+
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    job_title = lines[0] if lines and len(lines[0].split()) <= 6 else "Target Role"
+
+    result = {
+        "job_title": job_title,
+        "required_skills": found_skills[:8],
+        "preferred_skills": found_skills[8:15],
+        "experience_required": "",
+        "education_required": "",
+        "key_responsibilities": [l for l in lines[1:6] if len(l) > 20],
+        "keywords": found_skills,
+    }
+    return _validate_jd_result(result)
+
 def parse_job_description(raw_text: str) -> Dict:
-    client = _get_client()
-    prompt = JD_USER_PROMPT.format(raw_text=raw_text)
+    try:
+        client = _get_client()
+        prompt = JD_USER_PROMPT.format(raw_text=raw_text)
 
-    raw_response = _call_groq(client, JD_SYSTEM_PROMPT, prompt)
-    result = _try_parse_json(raw_response)
-    if result is not None:
-        return _validate_jd_result(result)
+        raw_response = _call_groq(client, JD_SYSTEM_PROMPT, prompt)
+        result = _try_parse_json(raw_response)
+        if result is not None:
+            return _validate_jd_result(result)
 
-    logger.warning("Groq JD parse: first attempt returned invalid JSON, retrying...")
-    strict_prompt = (
-        "Your previous response was not valid JSON. "
-        "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
-        + prompt
-    )
-    raw_response = _call_groq(client, JD_SYSTEM_PROMPT, strict_prompt)
-    result = _try_parse_json(raw_response)
-    if result is not None:
-        return _validate_jd_result(result)
+        logger.warning("Groq JD parse: first attempt returned invalid JSON, retrying...")
+        strict_prompt = (
+            "Your previous response was not valid JSON. "
+            "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
+            + prompt
+        )
+        raw_response = _call_groq(client, JD_SYSTEM_PROMPT, strict_prompt)
+        result = _try_parse_json(raw_response)
+        if result is not None:
+            return _validate_jd_result(result)
+    except Exception as exc:
+        logger.warning(f"Groq parse_job_description encountered error: {exc}. Using fallback parser...")
+        return _fallback_parse_jd(raw_text)
 
-    raise ValueError(
-        f"Groq returned unparseable response after retry. Raw response:\n{raw_response[:500]}"
-    )
+    return _fallback_parse_jd(raw_text)
+
 
 #it will make sure, that the parse json has all the valid fields we expect
 def _validate_jd_result(result: dict) -> dict:
