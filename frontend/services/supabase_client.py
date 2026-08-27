@@ -145,9 +145,17 @@ def extract_session_data(resp_or_session: Any, user: Any = None) -> Optional[Dic
 
 def is_authenticated() -> bool:
     """Single source of truth for user authentication state in Streamlit."""
-    token = st.session_state.get("access_token")
-    uid = st.session_state.get("user_id")
-    return bool(token and uid)
+    # =========================================================================
+    # AUTH TEMPORARILY DISABLED
+    # =========================================================================
+    # Always return True so all frontend features are accessible.
+    return True
+
+    # === ORIGINAL AUTH CHECK (DISABLED) ===
+    # token = st.session_state.get("access_token")
+    # uid = st.session_state.get("user_id")
+    # return bool(token and uid)
+
 
 
 def set_auth_session(session_data: Dict[str, Any]) -> bool:

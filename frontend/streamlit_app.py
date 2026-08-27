@@ -19,10 +19,10 @@ st.set_page_config(
 # -----------------------------------------------------------------------------
 for key, default in [
     ("auth_session", None),
-    ("access_token", None),
+    ("access_token", "guest_token"),
     ("refresh_token", None),
-    ("user_id", None),       # Supabase auth user id (uuid); also used by api_client
-    ("user_email", None),
+    ("user_id", "guest-user"),       # Supabase auth user id (uuid); also used by api_client
+    ("user_email", "Guest User"),
     ("auth_error", None),
     ("auth_info", None),
     ("google_oauth", None),
@@ -30,6 +30,7 @@ for key, default in [
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
+
 
 from frontend.services import supabase_client
 
@@ -131,98 +132,91 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    st.markdown("### 👤 Account")
+    st.markdown("### 👤 Access Mode")
+    st.caption("🔓 **Public Access Enabled** (Login temporarily disabled)")
 
-    if supabase_client.is_authenticated():
-        # Signed-in state: show email + sign-out button.
-        st.caption(f"Signed in as **{st.session_state.user_email}**")
-        if st.button("Sign out", use_container_width=True):
-            supabase_client.sign_out()
-            st.session_state.current_view = 'landing'
-            st.rerun()
-    else:
-        # Signed-out state: tabs for sign-in vs sign-up + Google OAuth button.
-        if st.session_state.auth_error:
-            st.error(st.session_state.auth_error)
-            st.session_state.auth_error = None
-        if st.session_state.auth_info:
-            st.info(st.session_state.auth_info)
-            st.session_state.auth_info = None
+    # =========================================================================
+    # AUTHENTICATION UI (TEMPORARILY DISABLED)
+    # To re-enable, remove the caption above and uncomment the block below.
+    # =========================================================================
+    # if supabase_client.is_authenticated():
+    #     # Signed-in state: show email + sign-out button.
+    #     st.caption(f"Signed in as **{st.session_state.user_email}**")
+    #     if st.button("Sign out", use_container_width=True):
+    #         supabase_client.sign_out()
+    #         st.session_state.current_view = 'landing'
+    #         st.rerun()
+    # else:
+    #     # Signed-out state: tabs for sign-in vs sign-up + Google OAuth button.
+    #     if st.session_state.auth_error:
+    #         st.error(st.session_state.auth_error)
+    #         st.session_state.auth_error = None
+    #     if st.session_state.auth_info:
+    #         st.info(st.session_state.auth_info)
+    #         st.session_state.auth_info = None
+    #
+    #     tab_in, tab_up = st.tabs(["Sign in", "Sign up"])
+    #
+    #     with tab_in:
+    #         with st.form("signin_form", clear_on_submit=False):
+    #             email = st.text_input("Email", key="signin_email")
+    #             password = st.text_input("Password", type="password", key="signin_pw")
+    #             submitted = st.form_submit_button("Sign in", use_container_width=True)
+    #         if submitted:
+    #             if not email or not password:
+    #                 st.session_state.auth_error = "Please provide both email and password."
+    #             else:
+    #                 result = supabase_client.sign_in_with_password(email, password)
+    #                 if "error" in result:
+    #                     st.session_state.auth_error = result["error"]
+    #                 else:
+    #                     supabase_client.set_auth_session(result)
+    #                     st.session_state.current_view = 'scorer'
+    #             st.rerun()
+    #
+    #     with tab_up:
+    #         with st.form("signup_form", clear_on_submit=False):
+    #             email_up = st.text_input("Email", key="signup_email")
+    #             password_up = st.text_input("Password (min 6 chars)", type="password", key="signup_pw")
+    #             submitted_up = st.form_submit_button("Create account", use_container_width=True)
+    #         if submitted_up:
+    #             print(f"[AUTH DEBUG] signup started with email: {email_up}", flush=True)
+    #             if not email_up or not password_up:
+    #                 st.session_state.auth_error = "Please provide both email and password."
+    #             elif len(password_up) < 6:
+    #                 st.session_state.auth_error = "Password must be at least 6 characters."
+    #             else:
+    #                 result = supabase_client.sign_up_with_password(email_up, password_up)
+    #                 if "error" in result:
+    #                     st.session_state.auth_error = result["error"]
+    #                 elif result.get("pending_confirmation"):
+    #                     st.session_state.auth_info = (
+    #                         f"Account created! Confirmation email sent to {result['email']}. Please confirm your email before signing in."
+    #                     )
+    #                 else:
+    #                     supabase_client.set_auth_session(result)
+    #                     st.session_state.current_view = 'scorer'
+    #             st.rerun()
+    #
+    #     st.markdown("<div style='text-align:center; margin: 8px 0; color:#94a3b8;'>or</div>",
+    #                 unsafe_allow_html=True)
+    #
+    #     if "google_oauth" not in st.session_state or not st.session_state.google_oauth or not st.session_state.google_oauth.get("url"):
+    #         oauth_data = supabase_client.google_oauth_url()
+    #         st.session_state.google_oauth = oauth_data
+    #         if "code_verifier" in oauth_data:
+    #             st.session_state.google_oauth_verifier = oauth_data["code_verifier"]
+    #
+    #     oauth = st.session_state.google_oauth
+    #     if "error" in oauth:
+    #         st.caption(f"Google sign-in unavailable: {oauth['error']}")
+    #     else:
+    #         st.link_button(
+    #             "Continue with Google",
+    #             url=oauth["url"],
+    #             use_container_width=True,
+    #         )
 
-        tab_in, tab_up = st.tabs(["Sign in", "Sign up"])
-
-        with tab_in:
-            with st.form("signin_form", clear_on_submit=False):
-                email = st.text_input("Email", key="signin_email")
-                password = st.text_input("Password", type="password", key="signin_pw")
-                submitted = st.form_submit_button("Sign in", use_container_width=True)
-            if submitted:
-                if not email or not password:
-                    st.session_state.auth_error = "Please provide both email and password."
-                else:
-                    result = supabase_client.sign_in_with_password(email, password)
-                    if "error" in result:
-                        st.session_state.auth_error = result["error"]
-                    else:
-                        supabase_client.set_auth_session(result)
-                        st.session_state.current_view = 'scorer'
-                st.rerun()
-
-        with tab_up:
-            with st.form("signup_form", clear_on_submit=False):
-                email_up = st.text_input("Email", key="signup_email")
-                password_up = st.text_input("Password (min 6 chars)", type="password", key="signup_pw")
-                submitted_up = st.form_submit_button("Create account", use_container_width=True)
-            if submitted_up:
-                print(f"[AUTH DEBUG] signup started with email: {email_up}", flush=True)
-                if not email_up or not password_up:
-                    st.session_state.auth_error = "Please provide both email and password."
-                elif len(password_up) < 6:
-                    st.session_state.auth_error = "Password must be at least 6 characters."
-                else:
-                    result = supabase_client.sign_up_with_password(email_up, password_up)
-                    print(f"[AUTH DEBUG] signup result received: {list(result.keys()) if isinstance(result, dict) else type(result)}", flush=True)
-                    print(f"[AUTH DEBUG] session exists: {'access_token' in result}", flush=True)
-                    print(f"[AUTH DEBUG] access token exists: {bool(result.get('access_token'))}", flush=True)
-                    print(f"[AUTH DEBUG] refresh token exists: {bool(result.get('refresh_token'))}", flush=True)
-                    print(f"[AUTH DEBUG] user id: {result.get('user_id')}", flush=True)
-                    print(f"[AUTH DEBUG] email: {result.get('email')}", flush=True)
-                    print(f"[AUTH DEBUG] session_state BEFORE set_auth_session: is_auth={supabase_client.is_authenticated()}", flush=True)
-                    
-                    if "error" in result:
-                        st.session_state.auth_error = result["error"]
-                    elif result.get("pending_confirmation"):
-                        st.session_state.auth_info = (
-                            f"Account created! Confirmation email sent to {result['email']}. Please confirm your email before signing in."
-                        )
-                    else:
-                        supabase_client.set_auth_session(result)
-                        print(f"[AUTH DEBUG] session_state AFTER set_auth_session: is_auth={supabase_client.is_authenticated()}", flush=True)
-                        st.session_state.current_view = 'scorer'
-                
-                print(f"[AUTH DEBUG] is_authenticated BEFORE rerun: {supabase_client.is_authenticated()}", flush=True)
-                print(f"[AUTH DEBUG] current_view BEFORE rerun: {st.session_state.get('current_view')}", flush=True)
-                print("[AUTH DEBUG] calling st.rerun()", flush=True)
-                st.rerun()
-
-        st.markdown("<div style='text-align:center; margin: 8px 0; color:#94a3b8;'>or</div>",
-                    unsafe_allow_html=True)
-
-        if "google_oauth" not in st.session_state or not st.session_state.google_oauth or not st.session_state.google_oauth.get("url"):
-            oauth_data = supabase_client.google_oauth_url()
-            st.session_state.google_oauth = oauth_data
-            if "code_verifier" in oauth_data:
-                st.session_state.google_oauth_verifier = oauth_data["code_verifier"]
-
-        oauth = st.session_state.google_oauth
-        if "error" in oauth:
-            st.caption(f"Google sign-in unavailable: {oauth['error']}")
-        else:
-            st.link_button(
-                "Continue with Google",
-                url=oauth["url"],
-                use_container_width=True,
-            )
 
 
 
