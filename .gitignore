@@ -1,0 +1,40 @@
+.DS_Store
+
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+.env.local
+secrets.toml
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Datasets
+*.csv
+
+# Logs
+*.log
+logs/
+backend_err.log
+backend_out.log
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ML models
+*.safetensors
+*.pkl
+
