@@ -36,21 +36,18 @@ from frontend.services import supabase_client
 # Restore and synchronize session if present across reruns
 supabase_client.restore_auth_session()
 
+print(f"[AUTH DEBUG] ===== NEW STREAMLIT SCRIPT RUN =====", flush=True)
+print(f"[AUTH DEBUG] current_view = {st.session_state.get('current_view')}", flush=True)
+print(f"[AUTH DEBUG] auth_session exists = {bool(st.session_state.get('auth_session'))}", flush=True)
+print(f"[AUTH DEBUG] access_token exists = {bool(st.session_state.get('access_token'))}", flush=True)
+print(f"[AUTH DEBUG] refresh_token exists = {bool(st.session_state.get('refresh_token'))}", flush=True)
+print(f"[AUTH DEBUG] user_id = {st.session_state.get('user_id')}", flush=True)
+print(f"[AUTH DEBUG] user_email = {st.session_state.get('user_email')}", flush=True)
+print(f"[AUTH DEBUG] is_authenticated = {supabase_client.is_authenticated()}", flush=True)
+
 # -----------------------------------------------------------------------------
 # 2. OAuth Callback Handler
 # -----------------------------------------------------------------------------
-# Process OAuth response BEFORE rendering components.
-# Order:
-# 1. Detect if ?code=... is present
-# 2. Extract code value immediately
-# 3. Read saved PKCE code_verifier
-# 4. Exchange code for session with Supabase
-# 5. Validate access_token, refresh_token, user_id, email via set_auth_session
-# 6. Store in st.session_state
-# 7. Set current_view = 'scorer'
-# 8. Clear st.query_params
-# 9. Call st.rerun()
-# 10. Handle errors cleanly without premature query param deletion
 if "code" in st.query_params:
     raw_code = st.query_params.get("code")
     code_val = raw_code[0] if isinstance(raw_code, list) else str(raw_code)
@@ -173,21 +170,35 @@ with st.sidebar:
                 password_up = st.text_input("Password (min 6 chars)", type="password", key="signup_pw")
                 submitted_up = st.form_submit_button("Create account", use_container_width=True)
             if submitted_up:
+                print(f"[AUTH DEBUG] signup started with email: {email_up}", flush=True)
                 if not email_up or not password_up:
                     st.session_state.auth_error = "Please provide both email and password."
                 elif len(password_up) < 6:
                     st.session_state.auth_error = "Password must be at least 6 characters."
                 else:
                     result = supabase_client.sign_up_with_password(email_up, password_up)
+                    print(f"[AUTH DEBUG] signup result received: {list(result.keys()) if isinstance(result, dict) else type(result)}", flush=True)
+                    print(f"[AUTH DEBUG] session exists: {'access_token' in result}", flush=True)
+                    print(f"[AUTH DEBUG] access token exists: {bool(result.get('access_token'))}", flush=True)
+                    print(f"[AUTH DEBUG] refresh token exists: {bool(result.get('refresh_token'))}", flush=True)
+                    print(f"[AUTH DEBUG] user id: {result.get('user_id')}", flush=True)
+                    print(f"[AUTH DEBUG] email: {result.get('email')}", flush=True)
+                    print(f"[AUTH DEBUG] session_state BEFORE set_auth_session: is_auth={supabase_client.is_authenticated()}", flush=True)
+                    
                     if "error" in result:
                         st.session_state.auth_error = result["error"]
                     elif result.get("pending_confirmation"):
                         st.session_state.auth_info = (
-                            f"Check your inbox — confirmation email sent to {result['email']}."
+                            f"Account created! Confirmation email sent to {result['email']}. Please confirm your email before signing in."
                         )
                     else:
                         supabase_client.set_auth_session(result)
+                        print(f"[AUTH DEBUG] session_state AFTER set_auth_session: is_auth={supabase_client.is_authenticated()}", flush=True)
                         st.session_state.current_view = 'scorer'
+                
+                print(f"[AUTH DEBUG] is_authenticated BEFORE rerun: {supabase_client.is_authenticated()}", flush=True)
+                print(f"[AUTH DEBUG] current_view BEFORE rerun: {st.session_state.get('current_view')}", flush=True)
+                print("[AUTH DEBUG] calling st.rerun()", flush=True)
                 st.rerun()
 
         st.markdown("<div style='text-align:center; margin: 8px 0; color:#94a3b8;'>or</div>",
@@ -208,6 +219,7 @@ with st.sidebar:
                 url=oauth["url"],
                 use_container_width=True,
             )
+
 
 
 

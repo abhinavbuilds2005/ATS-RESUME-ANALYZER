@@ -268,3 +268,62 @@ def test_streamlit_rerun_session_persistence():
     assert st.session_state["access_token"] == "persistent_jwt_123"
     assert st.session_state["user_email"] == "persistent@example.com"
 
+# -----------------------------------------------------------------------------
+# 15: extract_session_data normalization helper
+# -----------------------------------------------------------------------------
+def test_extract_session_data_normalization():
+    from frontend.services.supabase_client import extract_session_data
+    
+    # Nested session/user dict
+    raw_dict = {
+        "session": {"access_token": "acc_1", "refresh_token": "ref_1"},
+        "user": {"id": "uid_1", "email": "test1@example.com"},
+    }
+    normalized = extract_session_data(raw_dict)
+    assert normalized == {
+        "access_token": "acc_1",
+        "refresh_token": "ref_1",
+        "user_id": "uid_1",
+        "email": "test1@example.com",
+    }
+
+    # Flat dict
+    flat_dict = {
+        "access_token": "acc_2",
+        "refresh_token": "ref_2",
+        "user_id": "uid_2",
+        "email": "test2@example.com",
+    }
+    assert extract_session_data(flat_dict) == flat_dict
+
+    # None / incomplete
+    assert extract_session_data(None) is None
+    assert extract_session_data({"access_token": "acc_only"}) is None
+
+# -----------------------------------------------------------------------------
+# 16: Signup with Pending Confirmation vs Immediate Session
+# -----------------------------------------------------------------------------
+def test_signup_state_transitions():
+    import streamlit as st
+    supabase_client.clear_auth_session()
+
+    # Case A: Signup requires email confirmation (session is None)
+    signup_pending = {"pending_confirmation": True, "email": "pending@example.com"}
+    # Verify that pending confirmation does NOT mark user as authenticated
+    assert supabase_client.set_auth_session(signup_pending) is False
+    assert supabase_client.is_authenticated() is False
+    assert st.session_state.get("access_token") is None
+
+    # Case B: Signup returns immediate session
+    signup_active = {
+        "access_token": "active_acc_token",
+        "refresh_token": "active_ref_token",
+        "user_id": "usr_active_777",
+        "email": "active@example.com",
+    }
+    assert supabase_client.set_auth_session(signup_active) is True
+    assert supabase_client.is_authenticated() is True
+    assert st.session_state["access_token"] == "active_acc_token"
+    assert st.session_state["user_id"] == "usr_active_777"
+
+
