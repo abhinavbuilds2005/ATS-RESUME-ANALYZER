@@ -20,10 +20,13 @@ def render() -> None:
     st.title("📊 Analysis History")
     st.markdown("Past analyses saved against your account.")
 
-    access_token = st.session_state.get("access_token")
-    if not access_token:
+    from frontend.services.supabase_client import is_authenticated
+    if not is_authenticated():
         st.warning("⚠️ Sign in from the sidebar to view your history.")
         return
+
+    access_token = st.session_state.get("access_token")
+
 
     try:
         history = api_client.get_history(access_token)

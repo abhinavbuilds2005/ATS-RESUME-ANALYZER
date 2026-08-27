@@ -14,9 +14,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Auth state. Populated by Supabase sign-in / sign-up / OAuth.
-# All four are None when signed out, all four are set when signed in.
+# -----------------------------------------------------------------------------
+# 1. Initialize Authentication State
+# -----------------------------------------------------------------------------
 for key, default in [
+    ("auth_session", None),
     ("access_token", None),
     ("refresh_token", None),
     ("user_id", None),       # Supabase auth user id (uuid); also used by api_client
@@ -31,8 +33,11 @@ for key, default in [
 
 from frontend.services import supabase_client
 
+# Restore and synchronize session if present across reruns
+supabase_client.restore_auth_session()
+
 # -----------------------------------------------------------------------------
-# OAuth Callback Handler
+# 2. OAuth Callback Handler
 # -----------------------------------------------------------------------------
 # Process OAuth response BEFORE rendering components.
 # Order:
@@ -40,8 +45,8 @@ from frontend.services import supabase_client
 # 2. Extract code value immediately
 # 3. Read saved PKCE code_verifier
 # 4. Exchange code for session with Supabase
-# 5. Validate access_token, refresh_token, user_id, email
-# 6. Store all four in st.session_state
+# 5. Validate access_token, refresh_token, user_id, email via set_auth_session
+# 6. Store in st.session_state
 # 7. Set current_view = 'scorer'
 # 8. Clear st.query_params
 # 9. Call st.rerun()
@@ -50,7 +55,7 @@ if "code" in st.query_params:
     raw_code = st.query_params.get("code")
     code_val = raw_code[0] if isinstance(raw_code, list) else str(raw_code)
 
-    if code_val and not st.session_state.access_token:
+    if code_val and not supabase_client.is_authenticated():
         saved_verifier = (
             st.session_state.get("google_oauth_verifier")
             or (
@@ -66,18 +71,8 @@ if "code" in st.query_params:
             st.session_state.auth_error = f"Google sign-in failed: {result['error']}"
             st.query_params.clear()
         else:
-            # Validate all required session fields
-            acc_token = result.get("access_token")
-            ref_token = result.get("refresh_token")
-            uid = result.get("user_id")
-            mail = result.get("email")
-
-            if acc_token and ref_token and uid and mail:
-                st.session_state.access_token = acc_token
-                st.session_state.refresh_token = ref_token
-                st.session_state.user_id = uid
-                st.session_state.user_email = mail
-                st.session_state.auth_error = None
+            saved = supabase_client.set_auth_session(result)
+            if saved:
                 st.session_state.current_view = 'scorer'
                 st.query_params.clear()
                 st.rerun()
@@ -137,15 +132,12 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 👤 Account")
 
-    from frontend.services import supabase_client
-
-    if st.session_state.access_token:
+    if supabase_client.is_authenticated():
         # Signed-in state: show email + sign-out button.
         st.caption(f"Signed in as **{st.session_state.user_email}**")
         if st.button("Sign out", use_container_width=True):
             supabase_client.sign_out()
-            for k in ("access_token", "refresh_token", "user_id", "user_email", "google_oauth", "google_oauth_verifier"):
-                st.session_state[k] = None
+            st.session_state.current_view = 'landing'
             st.rerun()
     else:
         # Signed-out state: tabs for sign-in vs sign-up + Google OAuth button.
@@ -164,15 +156,15 @@ with st.sidebar:
                 password = st.text_input("Password", type="password", key="signin_pw")
                 submitted = st.form_submit_button("Sign in", use_container_width=True)
             if submitted:
-                result = supabase_client.sign_in_with_password(email, password)
-                if "error" in result:
-                    st.session_state.auth_error = result["error"]
+                if not email or not password:
+                    st.session_state.auth_error = "Please provide both email and password."
                 else:
-                    st.session_state.access_token  = result["access_token"]
-                    st.session_state.refresh_token = result["refresh_token"]
-                    st.session_state.user_id       = result["user_id"]
-                    st.session_state.user_email    = result["email"]
-                    st.session_state.current_view  = 'scorer'
+                    result = supabase_client.sign_in_with_password(email, password)
+                    if "error" in result:
+                        st.session_state.auth_error = result["error"]
+                    else:
+                        supabase_client.set_auth_session(result)
+                        st.session_state.current_view = 'scorer'
                 st.rerun()
 
         with tab_up:
@@ -181,19 +173,21 @@ with st.sidebar:
                 password_up = st.text_input("Password (min 6 chars)", type="password", key="signup_pw")
                 submitted_up = st.form_submit_button("Create account", use_container_width=True)
             if submitted_up:
-                result = supabase_client.sign_up_with_password(email_up, password_up)
-                if "error" in result:
-                    st.session_state.auth_error = result["error"]
-                elif result.get("pending_confirmation"):
-                    st.session_state.auth_info = (
-                        f"Check your inbox — confirmation email sent to {result['email']}."
-                    )
+                if not email_up or not password_up:
+                    st.session_state.auth_error = "Please provide both email and password."
+                elif len(password_up) < 6:
+                    st.session_state.auth_error = "Password must be at least 6 characters."
                 else:
-                    st.session_state.access_token  = result["access_token"]
-                    st.session_state.refresh_token = result["refresh_token"]
-                    st.session_state.user_id       = result["user_id"]
-                    st.session_state.user_email    = result["email"]
-                    st.session_state.current_view  = 'scorer'
+                    result = supabase_client.sign_up_with_password(email_up, password_up)
+                    if "error" in result:
+                        st.session_state.auth_error = result["error"]
+                    elif result.get("pending_confirmation"):
+                        st.session_state.auth_info = (
+                            f"Check your inbox — confirmation email sent to {result['email']}."
+                        )
+                    else:
+                        supabase_client.set_auth_session(result)
+                        st.session_state.current_view = 'scorer'
                 st.rerun()
 
         st.markdown("<div style='text-align:center; margin: 8px 0; color:#94a3b8;'>or</div>",
@@ -214,6 +208,7 @@ with st.sidebar:
                 url=oauth["url"],
                 use_container_width=True,
             )
+
 
 
 # Main content area - render based on current view

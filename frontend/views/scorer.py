@@ -188,10 +188,13 @@ def render() -> None:
             display_results_dashboard(st.session_state["scorer_analysis"])
         return
 
-    access_token = st.session_state.get("access_token")
-    if not access_token:
+    from frontend.services.supabase_client import is_authenticated
+    if not is_authenticated():
         st.warning("⚠️ Sign in from the sidebar to analyze a resume.")
         return
+
+    access_token = st.session_state.get("access_token")
+
 
     _, mid, _ = st.columns([1, 2, 1])
     with mid:

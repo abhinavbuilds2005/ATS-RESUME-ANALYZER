@@ -55,13 +55,21 @@ def _missing_config() -> str | None:
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return 'Supabase is not configured — set SUPABASE_URL and SUPABASE_ANON_KEY in .env or .streamlit/secrets.toml'
     return None
+@st.cache_resource
+def _get_cached_client(url: str, anon_key: str) -> Client:
+    """Cache base client instance for connection pooling and PKCE verifier state."""
+    return create_client(url, anon_key)
 
 
-def get_client() -> Client | None:
-    """Create a Supabase client instance isolated from shared disk storage."""
+def get_client() -> Optional[Client]:
+    """Get the active Supabase client."""
     if _missing_config():
         return None
-    return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    try:
+        return _get_cached_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    except Exception as exc:
+        logger.error(f"Failed to initialize Supabase client: {exc}")
+        return None
 
 
 def _session_dict(session, user) -> Dict[str, Any]:
@@ -73,12 +81,113 @@ def _session_dict(session, user) -> Dict[str, Any]:
     }
 
 
+def is_authenticated() -> bool:
+    """Single source of truth for user authentication state in Streamlit."""
+    token = st.session_state.get("access_token")
+    uid = st.session_state.get("user_id")
+    return bool(token and uid)
+
+
+def set_auth_session(session_data: Dict[str, Any]) -> bool:
+    """
+    Centralized helper to persist an authenticated session into Streamlit session_state.
+    Validates required fields before saving.
+    """
+    if not isinstance(session_data, dict):
+        return False
+
+    acc_token = session_data.get('access_token')
+    ref_token = session_data.get('refresh_token')
+    uid = session_data.get('user_id')
+    email = session_data.get('email')
+
+    if not (acc_token and uid and email):
+        logger.warning(f"Incomplete session data provided to set_auth_session: {list(session_data.keys())}")
+        return False
+
+    st.session_state["auth_session"] = {
+        'access_token': acc_token,
+        'refresh_token': ref_token,
+        'user_id': uid,
+        'email': email,
+    }
+    st.session_state["access_token"] = acc_token
+    st.session_state["refresh_token"] = ref_token
+    st.session_state["user_id"] = uid
+    st.session_state["user_email"] = email
+    st.session_state["auth_error"] = None
+    return True
+
+
+def clear_auth_session() -> None:
+    """Centralized helper to clear all user and authentication state."""
+    keys_to_clear = [
+        "auth_session",
+        "access_token",
+        "refresh_token",
+        "user_id",
+        "user_email",
+        "auth_error",
+        "auth_info",
+        "google_oauth",
+        "google_oauth_verifier",
+    ]
+    for key in keys_to_clear:
+        st.session_state[key] = None
+
+    # Clear user specific cached results
+    st.session_state.pop("scorer_analysis", None)
+    st.session_state.pop("scorer_pdf_bytes", None)
+
+
+def get_current_session() -> Optional[Dict[str, Any]]:
+    """Return the validated current session if authenticated, otherwise attempt restore."""
+    if is_authenticated():
+        session = st.session_state.get("auth_session")
+        if session:
+            return session
+        return {
+            'access_token': st.session_state.get("access_token"),
+            'refresh_token': st.session_state.get("refresh_token"),
+            'user_id': st.session_state.get("user_id"),
+            'email': st.session_state.get("user_email"),
+        }
+    return restore_auth_session()
+
+
+def restore_auth_session() -> Optional[Dict[str, Any]]:
+    """Restore and synchronize auth session from session state across reruns."""
+    session = st.session_state.get("auth_session")
+    if session and isinstance(session, dict):
+        if session.get("access_token") and session.get("user_id"):
+            set_auth_session(session)
+            return session
+
+    # Fallback to individual keys if present
+    token = st.session_state.get("access_token")
+    uid = st.session_state.get("user_id")
+    email = st.session_state.get("user_email")
+    if token and uid and email:
+        data = {
+            'access_token': token,
+            'refresh_token': st.session_state.get("refresh_token"),
+            'user_id': uid,
+            'email': email,
+        }
+        set_auth_session(data)
+        return data
+
+    return None
+
+
 def sign_in_with_password(email: str, password: str) -> Dict[str, Any]:
     err = _missing_config()
     if err:
         return {'error': err}
     try:
         client = get_client()
+        if not client:
+            return {'error': 'Authentication client initialization failed'}
         resp = client.auth.sign_in_with_password(
             {'email': email, 'password': password}
         )
@@ -96,6 +205,8 @@ def sign_up_with_password(email: str, password: str) -> Dict[str, Any]:
         return {'error': err}
     try:
         client = get_client()
+        if not client:
+            return {'error': 'Authentication client initialization failed'}
         resp = client.auth.sign_up({'email': email, 'password': password})
         if not resp:
             return {'error': 'Sign-up failed'}
@@ -116,6 +227,8 @@ def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
     try:
         redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         client = get_client()
+        if not client:
+            return {'error': 'Authentication client initialization failed'}
         resp = client.auth.sign_in_with_oauth({
             'provider': 'google',
             'options': {'redirect_to': redirect_to},
@@ -132,11 +245,6 @@ def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
         return {'error': _humanize(exc)}
 
 
-def get_current_session() -> Dict[str, Any] | None:
-    """Sessions are stored in st.session_state per-browser to prevent cross-user leakage."""
-    return None
-
-
 def exchange_code_for_session(
     auth_code: str,
     code_verifier: Optional[str] = None,
@@ -150,6 +258,8 @@ def exchange_code_for_session(
         return {'error': 'Missing authorization code'}
 
     client = get_client()
+    if not client:
+        return {'error': 'Authentication client initialization failed'}
     try:
         redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         storage_key = f'{client.auth._storage_key}-code-verifier'
@@ -178,19 +288,22 @@ def exchange_code_for_session(
         return {'error': _humanize(exc)}
 
 
-
 def sign_out() -> None:
     if _missing_config():
+        clear_auth_session()
         return
     try:
         client = get_client()
         if client:
             client.auth.sign_out()
     except Exception as exc:
-        logger.warning(f'sign_out failed: {exc}')
+        logger.warning(f'sign_out remote call failed: {exc}')
+    finally:
+        clear_auth_session()
 
 
 def _humanize(exc: Exception) -> str:
+
     msg = str(exc)
     # supabase errors arrive as "<status>: {json blob}" — surface the human bit
     if 'invalid_grant' in msg.lower() or 'invalid login' in msg.lower():
