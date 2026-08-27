@@ -29,11 +29,26 @@ def _secret(key: str, section: str = 'supabase') -> str:
 SUPABASE_URL = _secret('SUPABASE_URL')
 SUPABASE_ANON_KEY = _secret('SUPABASE_ANON_KEY')
 
-OAUTH_REDIRECT_URL = (
-    os.getenv('AUTH_REDIRECT_URL')
-    or _secret('redirect_uri', 'google_oauth')
-    or 'http://localhost:8501'
-)
+def get_oauth_redirect_url() -> str:
+    """
+    Resolve the OAuth redirect URL:
+    1. AUTH_REDIRECT_URL environment variable
+    2. OAUTH_REDIRECT_URL environment variable
+    3. st.secrets['AUTH_REDIRECT_URL'] or st.secrets['google_oauth']['redirect_uri']
+    4. http://localhost:8501 (default local fallback)
+    Normalized by stripping whitespace and trailing slashes.
+    """
+    url = (
+        os.getenv('AUTH_REDIRECT_URL')
+        or os.getenv('OAUTH_REDIRECT_URL')
+        or _secret('AUTH_REDIRECT_URL')
+        or _secret('redirect_uri', 'google_oauth')
+        or 'http://localhost:8501'
+    )
+    return str(url).strip().rstrip('/')
+
+
+OAUTH_REDIRECT_URL = get_oauth_redirect_url()
 
 
 def _missing_config() -> str | None:
@@ -51,10 +66,10 @@ def get_client() -> Client | None:
 
 def _session_dict(session, user) -> Dict[str, Any]:
     return {
-        'access_token':  session.access_token,
-        'refresh_token': session.refresh_token,
-        'user_id':       user.id,
-        'email':         user.email,
+        'access_token':  getattr(session, 'access_token', None),
+        'refresh_token': getattr(session, 'refresh_token', None),
+        'user_id':       getattr(user, 'id', None),
+        'email':         getattr(user, 'email', None),
     }
 
 
@@ -67,7 +82,7 @@ def sign_in_with_password(email: str, password: str) -> Dict[str, Any]:
         resp = client.auth.sign_in_with_password(
             {'email': email, 'password': password}
         )
-        if not resp.session or not resp.user:
+        if not resp or not resp.session or not resp.user:
             return {'error': 'Invalid credentials'}
         return _session_dict(resp.session, resp.user)
     except Exception as exc:
@@ -82,6 +97,8 @@ def sign_up_with_password(email: str, password: str) -> Dict[str, Any]:
     try:
         client = get_client()
         resp = client.auth.sign_up({'email': email, 'password': password})
+        if not resp:
+            return {'error': 'Sign-up failed'}
         if resp.session and resp.user:
             return _session_dict(resp.session, resp.user)
         if resp.user:
@@ -92,19 +109,24 @@ def sign_up_with_password(email: str, password: str) -> Dict[str, Any]:
         return {'error': _humanize(exc)}
 
 
-def google_oauth_url() -> Dict[str, Any]:
+def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
     err = _missing_config()
     if err:
         return {'error': err}
     try:
+        redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         client = get_client()
         resp = client.auth.sign_in_with_oauth({
             'provider': 'google',
-            'options': {'redirect_to': OAUTH_REDIRECT_URL},
+            'options': {'redirect_to': redirect_to},
         })
         storage_key = f'{client.auth._storage_key}-code-verifier'
         code_verifier = client.auth._storage.get_item(storage_key) or ''
-        return {'url': resp.url, 'code_verifier': code_verifier}
+        return {
+            'url': resp.url,
+            'code_verifier': code_verifier,
+            'redirect_to': redirect_to,
+        }
     except Exception as exc:
         logger.warning(f'oauth url generation failed: {exc}')
         return {'error': _humanize(exc)}
@@ -115,31 +137,46 @@ def get_current_session() -> Dict[str, Any] | None:
     return None
 
 
-def exchange_code_for_session(auth_code: str, code_verifier: Optional[str] = None) -> Dict[str, Any]:
+def exchange_code_for_session(
+    auth_code: str,
+    code_verifier: Optional[str] = None,
+    redirect_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """Called once after the OAuth provider redirects back with `?code=...`."""
     err = _missing_config()
     if err:
         return {'error': err}
+    if not auth_code:
+        return {'error': 'Missing authorization code'}
+
     client = get_client()
     try:
+        redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         storage_key = f'{client.auth._storage_key}-code-verifier'
-        if not code_verifier:
-            code_verifier = client.auth._storage.get_item(storage_key) or ''
-        else:
+        
+        if code_verifier:
             client.auth._storage.set_item(storage_key, code_verifier)
+        else:
+            code_verifier = client.auth._storage.get_item(storage_key) or ''
 
-        logger.info(f"Exchanging auth code with verifier present: {bool(code_verifier)}")
+        logger.info(f"Exchanging auth code (verifier present: {bool(code_verifier)}, redirect_to: {redirect_to})")
         resp = client.auth.exchange_code_for_session({
             'auth_code': auth_code,
             'code_verifier': code_verifier,
-            'redirect_to': OAUTH_REDIRECT_URL,
+            'redirect_to': redirect_to,
         })
-        if not resp.session or not resp.user:
+        if not resp or not resp.session or not resp.user:
             return {'error': 'OAuth exchange returned no session'}
-        return _session_dict(resp.session, resp.user)
+            
+        data = _session_dict(resp.session, resp.user)
+        if not (data.get('access_token') and data.get('refresh_token') and data.get('user_id') and data.get('email')):
+            return {'error': 'Incomplete session returned from auth exchange'}
+            
+        return data
     except Exception as exc:
         logger.error(f'exchange_code_for_session failed: {exc}')
         return {'error': _humanize(exc)}
+
 
 
 def sign_out() -> None:

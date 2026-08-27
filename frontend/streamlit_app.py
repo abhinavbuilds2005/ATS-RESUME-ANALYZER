@@ -23,54 +23,81 @@ for key, default in [
     ("user_email", None),
     ("auth_error", None),
     ("auth_info", None),
+    ("google_oauth", None),
+    ("google_oauth_verifier", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
 
 from frontend.services import supabase_client
 
-if "error" in st.query_params or "error_description" in st.query_params:
+# -----------------------------------------------------------------------------
+# OAuth Callback Handler
+# -----------------------------------------------------------------------------
+# Process OAuth response BEFORE rendering components.
+# Order:
+# 1. Detect if ?code=... is present
+# 2. Extract code value immediately
+# 3. Read saved PKCE code_verifier
+# 4. Exchange code for session with Supabase
+# 5. Validate access_token, refresh_token, user_id, email
+# 6. Store all four in st.session_state
+# 7. Set current_view = 'scorer'
+# 8. Clear st.query_params
+# 9. Call st.rerun()
+# 10. Handle errors cleanly without premature query param deletion
+if "code" in st.query_params:
+    raw_code = st.query_params.get("code")
+    code_val = raw_code[0] if isinstance(raw_code, list) else str(raw_code)
+
+    if code_val and not st.session_state.access_token:
+        saved_verifier = (
+            st.session_state.get("google_oauth_verifier")
+            or (
+                st.session_state.get("google_oauth", {}).get("code_verifier")
+                if isinstance(st.session_state.get("google_oauth"), dict)
+                else None
+            )
+        )
+        
+        result = supabase_client.exchange_code_for_session(code_val, code_verifier=saved_verifier)
+        
+        if "error" in result:
+            st.session_state.auth_error = f"Google sign-in failed: {result['error']}"
+            st.query_params.clear()
+        else:
+            # Validate all required session fields
+            acc_token = result.get("access_token")
+            ref_token = result.get("refresh_token")
+            uid = result.get("user_id")
+            mail = result.get("email")
+
+            if acc_token and ref_token and uid and mail:
+                st.session_state.access_token = acc_token
+                st.session_state.refresh_token = ref_token
+                st.session_state.user_id = uid
+                st.session_state.user_email = mail
+                st.session_state.auth_error = None
+                st.session_state.current_view = 'scorer'
+                st.query_params.clear()
+                st.rerun()
+            else:
+                st.session_state.auth_error = "Google sign-in failed: Incomplete session returned."
+                st.query_params.clear()
+    else:
+        st.query_params.clear()
+
+elif "error" in st.query_params or "error_description" in st.query_params:
     err_msg = (
         st.query_params.get("error_description")
         or st.query_params.get("error_code")
         or st.query_params.get("error")
     )
     if isinstance(err_msg, list):
-        err_msg = err_msg[0]
+        err_msg = err_msg[0] if err_msg else "Unknown OAuth error"
     st.session_state.auth_error = f"Google sign-in error: {err_msg}"
-    try:
-        st.toast(f"Google sign-in failed: {err_msg}", icon="⚠️")
-    except Exception:
-        pass
     st.query_params.clear()
 
-# If we just came back from Google OAuth, Supabase appends `?code=<authcode>`
-# to the redirect URL. Exchange it for a session before rendering anything.
-if "code" in st.query_params:
-    code_val = st.query_params.get("code")
-    if isinstance(code_val, list):
-        code_val = code_val[0]
-
-    if code_val and not st.session_state.access_token:
-        saved_verifier = (
-            st.session_state.get("google_oauth", {}).get("code_verifier")
-            if isinstance(st.session_state.get("google_oauth"), dict)
-            else None
-        )
-        result = supabase_client.exchange_code_for_session(str(code_val), code_verifier=saved_verifier)
-        st.query_params.clear()
-
-        if "error" in result:
-            st.session_state.auth_error = f"Google sign-in error: {result['error']}"
-        else:
-            st.session_state.access_token  = result["access_token"]
-            st.session_state.refresh_token = result["refresh_token"]
-            st.session_state.user_id       = result["user_id"]
-            st.session_state.user_email    = result["email"]
-            st.session_state.current_view  = 'scorer'
-            st.rerun()
-    else:
-        st.query_params.clear()
 
 #Load custom CSS
 def load_css():
@@ -117,7 +144,7 @@ with st.sidebar:
         st.caption(f"Signed in as **{st.session_state.user_email}**")
         if st.button("Sign out", use_container_width=True):
             supabase_client.sign_out()
-            for k in ("access_token", "refresh_token", "user_id", "user_email", "google_oauth"):
+            for k in ("access_token", "refresh_token", "user_id", "user_email", "google_oauth", "google_oauth_verifier"):
                 st.session_state[k] = None
             st.rerun()
     else:
@@ -145,6 +172,7 @@ with st.sidebar:
                     st.session_state.refresh_token = result["refresh_token"]
                     st.session_state.user_id       = result["user_id"]
                     st.session_state.user_email    = result["email"]
+                    st.session_state.current_view  = 'scorer'
                 st.rerun()
 
         with tab_up:
@@ -165,13 +193,17 @@ with st.sidebar:
                     st.session_state.refresh_token = result["refresh_token"]
                     st.session_state.user_id       = result["user_id"]
                     st.session_state.user_email    = result["email"]
+                    st.session_state.current_view  = 'scorer'
                 st.rerun()
 
         st.markdown("<div style='text-align:center; margin: 8px 0; color:#94a3b8;'>or</div>",
                     unsafe_allow_html=True)
 
-        if "google_oauth" not in st.session_state or not st.session_state.google_oauth.get("url"):
-            st.session_state.google_oauth = supabase_client.google_oauth_url()
+        if "google_oauth" not in st.session_state or not st.session_state.google_oauth or not st.session_state.google_oauth.get("url"):
+            oauth_data = supabase_client.google_oauth_url()
+            st.session_state.google_oauth = oauth_data
+            if "code_verifier" in oauth_data:
+                st.session_state.google_oauth_verifier = oauth_data["code_verifier"]
 
         oauth = st.session_state.google_oauth
         if "error" in oauth:
@@ -182,6 +214,7 @@ with st.sidebar:
                 url=oauth["url"],
                 use_container_width=True,
             )
+
 
 # Main content area - render based on current view
 if st.session_state.current_view == 'landing':
