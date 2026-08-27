@@ -1,5 +1,6 @@
 import os
 import logging
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Optional
 import streamlit as st
@@ -288,20 +289,32 @@ def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
     if err:
         return {'error': err}
     try:
-        redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
+        base_redirect = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         client = get_client()
         if not client:
             return {'error': 'Authentication client initialization failed'}
         resp = client.auth.sign_in_with_oauth({
             'provider': 'google',
-            'options': {'redirect_to': redirect_to},
+            'options': {'redirect_to': base_redirect},
         })
         storage_key = f'{client.auth._storage_key}-code-verifier'
         code_verifier = client.auth._storage.get_item(storage_key) or ''
+
+        final_url = resp.url
+        final_redirect = base_redirect
+        if code_verifier and resp.url:
+            delim = '&' if '?' in base_redirect else '?'
+            final_redirect = f"{base_redirect}{delim}cv={urllib.parse.quote(code_verifier)}"
+            parsed = urllib.parse.urlparse(resp.url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            qs['redirect_to'] = [final_redirect]
+            new_query = urllib.parse.urlencode(qs, doseq=True)
+            final_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+
         return {
-            'url': resp.url,
+            'url': final_url,
             'code_verifier': code_verifier,
-            'redirect_to': redirect_to,
+            'redirect_to': final_redirect,
         }
     except Exception as exc:
         logger.warning(f'oauth url generation failed: {exc}')
@@ -324,13 +337,16 @@ def exchange_code_for_session(
     if not client:
         return {'error': 'Authentication client initialization failed'}
     try:
-        redirect_to = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
+        base_redirect = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         storage_key = f'{client.auth._storage_key}-code-verifier'
         
         if code_verifier:
             client.auth._storage.set_item(storage_key, code_verifier)
+            delim = '&' if '?' in base_redirect else '?'
+            redirect_to = f"{base_redirect}{delim}cv={urllib.parse.quote(code_verifier)}"
         else:
             code_verifier = client.auth._storage.get_item(storage_key) or ''
+            redirect_to = base_redirect
 
         logger.info(f"Exchanging auth code (verifier present: {bool(code_verifier)}, redirect_to: {redirect_to})")
         resp = client.auth.exchange_code_for_session({

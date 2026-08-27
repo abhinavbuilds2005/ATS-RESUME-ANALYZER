@@ -35,10 +35,11 @@ def test_exchange_code_for_session_success(mock_missing, mock_get_client):
     assert result["email"] == "testuser@gmail.com"
     
     # Verify the parameters passed to gotrue
+    expected_redirect = f"{get_oauth_redirect_url()}?cv=mock-verifier-xyz"
     mock_client.auth.exchange_code_for_session.assert_called_once_with({
         "auth_code": "oauth-auth-code-abc",
         "code_verifier": "mock-verifier-xyz",
-        "redirect_to": get_oauth_redirect_url(),
+        "redirect_to": expected_redirect,
     })
 
 # -----------------------------------------------------------------------------
@@ -76,7 +77,7 @@ def test_google_oauth_url_generates_verifier(mock_missing, mock_get_client):
     assert "error" not in oauth
     assert "accounts.google.com" in oauth["url"]
     assert oauth["code_verifier"] == "generated-pkce-verifier-123"
-    assert oauth["redirect_to"] == get_oauth_redirect_url()
+    assert oauth["redirect_to"] == f"{get_oauth_redirect_url()}?cv=generated-pkce-verifier-123"
 
 # -----------------------------------------------------------------------------
 # 6: Email / Password Sign In

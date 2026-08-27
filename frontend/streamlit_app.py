@@ -52,9 +52,13 @@ if "code" in st.query_params:
     raw_code = st.query_params.get("code")
     code_val = raw_code[0] if isinstance(raw_code, list) else str(raw_code)
 
+    raw_cv = st.query_params.get("cv") or st.query_params.get("verifier")
+    query_cv = (raw_cv[0] if isinstance(raw_cv, list) else str(raw_cv)) if raw_cv else None
+
     if code_val and not supabase_client.is_authenticated():
         saved_verifier = (
-            st.session_state.get("google_oauth_verifier")
+            query_cv
+            or st.session_state.get("google_oauth_verifier")
             or (
                 st.session_state.get("google_oauth", {}).get("code_verifier")
                 if isinstance(st.session_state.get("google_oauth"), dict)
