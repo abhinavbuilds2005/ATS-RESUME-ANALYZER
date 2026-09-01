@@ -1,5 +1,13 @@
 import io
+import sys
+from pathlib import Path
 import pytest
+
+# Ensure repo root is on sys.path for test discovery
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from docx import Document
 import PyPDF2
 from reportlab.pdfgen import canvas

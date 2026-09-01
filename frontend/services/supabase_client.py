@@ -145,16 +145,13 @@ def extract_session_data(resp_or_session: Any, user: Any = None) -> Optional[Dic
 
 def is_authenticated() -> bool:
     """Single source of truth for user authentication state in Streamlit."""
-    # =========================================================================
-    # AUTH TEMPORARILY DISABLED
-    # =========================================================================
-    # Always return True so all frontend features are accessible.
+    token = st.session_state.get("access_token")
+    uid = st.session_state.get("user_id")
+    if not token or not uid:
+        return False
+    if token == "guest_token" or uid == "guest-user":
+        return False
     return True
-
-    # === ORIGINAL AUTH CHECK (DISABLED) ===
-    # token = st.session_state.get("access_token")
-    # uid = st.session_state.get("user_id")
-    # return bool(token and uid)
 
 
 
@@ -232,7 +229,7 @@ def restore_auth_session() -> Optional[Dict[str, Any]]:
     token = st.session_state.get("access_token")
     uid = st.session_state.get("user_id")
     email = st.session_state.get("user_email")
-    if token and uid:
+    if token and uid and token != "guest_token" and uid != "guest-user":
         data = {
             'access_token': token,
             'refresh_token': st.session_state.get("refresh_token"),
@@ -301,6 +298,11 @@ def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
         client = get_client()
         if not client:
             return {'error': 'Authentication client initialization failed'}
+
+        # Use the configured callback URL as-is. The PKCE verifier must stay in the
+        # exchange payload, not be appended to the redirect URL. Appending it here
+        # changes the final redirect target and causes Supabase to reject the exchange
+        # with "Unable to exchange external code: 4/0A".
         resp = client.auth.sign_in_with_oauth({
             'provider': 'google',
             'options': {'redirect_to': base_redirect},
@@ -308,21 +310,16 @@ def google_oauth_url(redirect_url: Optional[str] = None) -> Dict[str, Any]:
         storage_key = f'{client.auth._storage_key}-code-verifier'
         code_verifier = client.auth._storage.get_item(storage_key) or ''
 
-        final_url = resp.url
-        final_redirect = base_redirect
-        if code_verifier and resp.url:
-            delim = '&' if '?' in base_redirect else '?'
-            final_redirect = f"{base_redirect}{delim}cv={urllib.parse.quote(code_verifier)}"
-            parsed = urllib.parse.urlparse(resp.url)
-            qs = urllib.parse.parse_qs(parsed.query)
-            qs['redirect_to'] = [final_redirect]
-            new_query = urllib.parse.urlencode(qs, doseq=True)
-            final_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
-
+        final_url = getattr(resp, 'url', '') or ''
+        logger.info(f"[OAUTH DEBUG] final_url = {final_url}")
+        logger.info(f"[OAUTH DEBUG] code_verifier present = {bool(code_verifier)}")
+        logger.info(f"[OAUTH DEBUG] redirect_to = {base_redirect}")
+        print(f"[OAUTH DEBUG] final_url = {final_url}", flush=True)
+        print(f"[OAUTH DEBUG] redirect_to = {base_redirect}", flush=True)
         return {
             'url': final_url,
             'code_verifier': code_verifier,
-            'redirect_to': final_redirect,
+            'redirect_to': base_redirect,
         }
     except Exception as exc:
         logger.warning(f'oauth url generation failed: {exc}')
@@ -347,14 +344,15 @@ def exchange_code_for_session(
     try:
         base_redirect = (redirect_url or get_oauth_redirect_url()).strip().rstrip('/')
         storage_key = f'{client.auth._storage_key}-code-verifier'
-        
+
         if code_verifier:
             client.auth._storage.set_item(storage_key, code_verifier)
-            delim = '&' if '?' in base_redirect else '?'
-            redirect_to = f"{base_redirect}{delim}cv={urllib.parse.quote(code_verifier)}"
         else:
             code_verifier = client.auth._storage.get_item(storage_key) or ''
-            redirect_to = base_redirect
+
+        # The redirect target must remain the original app callback URL; the verifier
+        # is sent separately in the exchange payload for PKCE validation.
+        redirect_to = base_redirect
 
         logger.info(f"Exchanging auth code (verifier present: {bool(code_verifier)}, redirect_to: {redirect_to})")
         resp = client.auth.exchange_code_for_session({
@@ -364,11 +362,11 @@ def exchange_code_for_session(
         })
         if not resp or not resp.session or not resp.user:
             return {'error': 'OAuth exchange returned no session'}
-            
+
         data = _session_dict(resp.session, resp.user)
         if not (data.get('access_token') and data.get('refresh_token') and data.get('user_id') and data.get('email')):
             return {'error': 'Incomplete session returned from auth exchange'}
-            
+
         return data
     except Exception as exc:
         logger.error(f'exchange_code_for_session failed: {exc}')

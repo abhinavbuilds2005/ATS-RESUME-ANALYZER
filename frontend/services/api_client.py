@@ -53,8 +53,7 @@ def _backend_url() -> str:
 
 
 def _auth_headers(access_token: str = "") -> Dict[str, str]:
-    token = access_token or "guest_token"
-    return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {access_token}"} if access_token else {}
 
 
 
