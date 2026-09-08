@@ -1,4 +1,17 @@
 import os
+import sys
+import subprocess
+
+print("=== DEBUGGING PORT & PROCESSES ===", flush=True)
+print(f"PID: {os.getpid()}", flush=True)
+print("ENV:", {k: v for k, v in os.environ.items() if "PORT" in k or "GRADIO" in k or "SPACE" in k or "ZERO" in k}, flush=True)
+try:
+    netstat = subprocess.check_output("ss -tulpn 2>&1 || netstat -tulpn 2>&1 || true", shell=True, text=True)
+    print("OPEN PORTS:\n" + netstat, flush=True)
+except Exception as e:
+    print("Could not get open ports:", e, flush=True)
+print("==================================", flush=True)
+
 try:
     import spaces
 except ImportError:
