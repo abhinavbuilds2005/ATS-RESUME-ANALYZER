@@ -15,9 +15,5 @@ services:
         sync: false
       - key: SUPABASE_KEY
         sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_JWT_SECRET
-        sync: false
       - key: SENTENCE_TRANSFORMER_MODEL
         value: all-MiniLM-L6-v2

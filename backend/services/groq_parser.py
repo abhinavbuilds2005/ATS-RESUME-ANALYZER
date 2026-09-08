@@ -8,6 +8,7 @@ from typing import Dict, Optional, Any
 from groq import Groq
 
 from backend.core.config import GROQ_API_KEY, GROQ_MODEL
+from backend.utils.matching import match_skill_in_text
 
 logger = logging.getLogger('ats_resume_scorer')
 
@@ -19,7 +20,7 @@ def _get_client() -> Groq:
         api_key = GROQ_API_KEY or os.getenv('GROQ_API_KEY')
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable not set")
-        _client = Groq(api_key=api_key, timeout=30.0)
+        _client = Groq(api_key=api_key, timeout=20.0)
     return _client
 
 RESUME_SYSTEM_PROMPT = (
@@ -136,6 +137,15 @@ def _try_parse_json(text: str) -> dict | None:
     return None
 
 
+COMMON_TECH_SKILLS = [
+    "python", "javascript", "typescript", "java", "c++", "c#", ".net", "go", "rust",
+    "react", "react.js", "next.js", "angular", "vue", "node.js", "express", "fastapi", "django", "flask",
+    "sql", "postgresql", "mysql", "mongodb", "redis", "docker", "kubernetes",
+    "aws", "gcp", "azure", "git", "linux", "machine learning", "deep learning",
+    "nlp", "data analysis", "html", "css", "tailwind", "rest api", "graphql",
+    "ci/cd", "scikit-learn"
+]
+
 def _fallback_parse_resume(raw_text: str) -> Dict:
     """Deterministic heuristic fallback when Groq is unavailable or fails."""
     logger.warning("Using heuristic fallback parser for resume.")
@@ -144,15 +154,8 @@ def _fallback_parse_resume(raw_text: str) -> Dict:
     linkedin = re.findall(r'linkedin\.com/in/[\w\-]+', raw_text, re.IGNORECASE)
     github = re.findall(r'github\.com/[\w\-]+', raw_text, re.IGNORECASE)
 
-    common_skills = [
-        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
-        "react", "angular", "vue", "node.js", "express", "fastapi", "django", "flask",
-        "sql", "postgresql", "mysql", "mongodb", "redis", "docker", "kubernetes",
-        "aws", "gcp", "azure", "git", "linux", "machine learning", "deep learning",
-        "nlp", "data analysis", "html", "css", "tailwind", "rest api", "graphql"
-    ]
     raw_lower = raw_text.lower()
-    found_skills = [s.title() for s in common_skills if re.search(r'\b' + re.escape(s) + r'\b', raw_lower)]
+    found_skills = [s.title() for s in COMMON_TECH_SKILLS if match_skill_in_text(s, raw_lower)]
 
     common_verbs = [
         "developed", "implemented", "designed", "built", "created", "led", "managed",
@@ -179,10 +182,11 @@ def _fallback_parse_resume(raw_text: str) -> Dict:
         "projects": [],
         "action_verbs": found_verbs,
         "keywords": found_skills[:15],
+        "llm_status": "fallback",
     }
     return _validate_resume_result(result)
 
-def parse_resume(raw_text: str)->Dict:
+def parse_resume(raw_text: str) -> Dict:
     try:
         client = _get_client()
         prompt = RESUME_USER_PROMPT.format(raw_text=raw_text)
@@ -190,9 +194,11 @@ def parse_resume(raw_text: str)->Dict:
         result = _try_parse_json(raw_response)
 
         if result is not None:
-            return _validate_resume_result(result)
+            validated = _validate_resume_result(result)
+            validated["llm_status"] = "active"
+            return validated
 
-        logger.warning("Groq resume parse: first attempt returned invalid JSON, retrying...")
+        logger.warning("Groq resume parse: first attempt returned invalid JSON, retrying once...")
         strict_prompt = (
             "Your previous response was not valid JSON. "
             "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
@@ -201,14 +207,16 @@ def parse_resume(raw_text: str)->Dict:
         raw_response = _call_groq(client, RESUME_SYSTEM_PROMPT, strict_prompt)
         result = _try_parse_json(raw_response)
         if result is not None:
-            return _validate_resume_result(result)
+            validated = _validate_resume_result(result)
+            validated["llm_status"] = "active"
+            return validated
     except Exception as exc:
         logger.warning(f"Groq parse_resume encountered error: {exc}. Using fallback parser...")
         return _fallback_parse_resume(raw_text)
 
     return _fallback_parse_resume(raw_text)
 
-    
+
 JD_SYSTEM_PROMPT = (
     "You are a job description parser. Extract information and "
     "return ONLY a valid JSON object. No explanation, no markdown."
@@ -238,15 +246,8 @@ Job Description Text:
 def _fallback_parse_jd(raw_text: str) -> Dict:
     """Deterministic heuristic fallback when Groq is unavailable or fails for JD."""
     logger.warning("Using heuristic fallback parser for job description.")
-    common_skills = [
-        "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
-        "react", "angular", "vue", "node.js", "express", "fastapi", "django", "flask",
-        "sql", "postgresql", "mysql", "mongodb", "redis", "docker", "kubernetes",
-        "aws", "gcp", "azure", "git", "linux", "machine learning", "deep learning",
-        "nlp", "data analysis", "html", "css", "tailwind", "rest api", "graphql"
-    ]
     raw_lower = raw_text.lower()
-    found_skills = [s.title() for s in common_skills if re.search(r'\b' + re.escape(s) + r'\b', raw_lower)]
+    found_skills = [s.title() for s in COMMON_TECH_SKILLS if match_skill_in_text(s, raw_lower)]
 
     lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
     job_title = lines[0] if lines and len(lines[0].split()) <= 6 else "Target Role"
@@ -259,6 +260,7 @@ def _fallback_parse_jd(raw_text: str) -> Dict:
         "education_required": "",
         "key_responsibilities": [l for l in lines[1:6] if len(l) > 20],
         "keywords": found_skills,
+        "llm_status": "fallback",
     }
     return _validate_jd_result(result)
 
@@ -270,9 +272,11 @@ def parse_job_description(raw_text: str) -> Dict:
         raw_response = _call_groq(client, JD_SYSTEM_PROMPT, prompt)
         result = _try_parse_json(raw_response)
         if result is not None:
-            return _validate_jd_result(result)
+            validated = _validate_jd_result(result)
+            validated["llm_status"] = "active"
+            return validated
 
-        logger.warning("Groq JD parse: first attempt returned invalid JSON, retrying...")
+        logger.warning("Groq JD parse: first attempt returned invalid JSON, retrying once...")
         strict_prompt = (
             "Your previous response was not valid JSON. "
             "Return ONLY the raw JSON object, no markdown, no explanation, no code fences.\n\n"
@@ -281,12 +285,15 @@ def parse_job_description(raw_text: str) -> Dict:
         raw_response = _call_groq(client, JD_SYSTEM_PROMPT, strict_prompt)
         result = _try_parse_json(raw_response)
         if result is not None:
-            return _validate_jd_result(result)
+            validated = _validate_jd_result(result)
+            validated["llm_status"] = "active"
+            return validated
     except Exception as exc:
         logger.warning(f"Groq parse_job_description encountered error: {exc}. Using fallback parser...")
         return _fallback_parse_jd(raw_text)
 
     return _fallback_parse_jd(raw_text)
+
 
 
 #it will make sure, that the parse json has all the valid fields we expect

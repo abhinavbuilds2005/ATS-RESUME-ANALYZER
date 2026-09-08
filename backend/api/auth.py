@@ -1,21 +1,20 @@
 import logging
-
+from typing import Optional, Dict, Any
 import jwt
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.core.config import SUPABASE_JWT_SECRET, SUPABASE_URL
+from backend.core.config import SUPABASE_JWT_SECRET, SUPABASE_URL, SUPABASE_KEY, SUPABASE_ANON_KEY
 
 logger = logging.getLogger('ats_resume_scorer')
 
 _bearer_scheme = HTTPBearer(auto_error=False)
-
 _ASYMMETRIC_ALGS = ['ES256', 'RS256']
+_jwks_client: Optional[jwt.PyJWKClient] = None
 
-_jwks_client: jwt.PyJWKClient | None = None
 
-
-def _get_jwks_client() -> jwt.PyJWKClient | None:
+def _get_jwks_client() -> Optional[jwt.PyJWKClient]:
     global _jwks_client
     if _jwks_client is not None:
         return _jwks_client
@@ -26,15 +25,15 @@ def _get_jwks_client() -> jwt.PyJWKClient | None:
     return _jwks_client
 
 
-def _verify_token(token: str) -> dict:
+def _verify_token_locally(token: str) -> Dict[str, Any]:
     header = jwt.get_unverified_header(token)
-    alg = header.get('alg')
+    alg = header.get('alg', 'HS256')
 
     if alg in _ASYMMETRIC_ALGS:
         jwks_client = _get_jwks_client()
         if jwks_client is None:
             raise jwt.InvalidTokenError(
-                'SUPABASE_URL not configured - cannot fetch JWKS to verify token'
+                'SUPABASE_URL not configured — cannot fetch JWKS to verify token'
             )
         signing_key = jwks_client.get_signing_key_from_jwt(token).key
         return jwt.decode(
@@ -59,51 +58,101 @@ def _verify_token(token: str) -> dict:
     raise jwt.InvalidTokenError(f'Unsupported JWT algorithm: {alg}')
 
 
-def get_current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
-) -> str:
-    if creds is None or not creds.credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Missing Authorization: Bearer <token> header',
-            headers={'WWW-Authenticate': 'Bearer'},
-        )
+async def _verify_token_with_supabase_api(token: str) -> Optional[str]:
+    """Fallback: Validate token directly against Supabase Auth API."""
+    if not SUPABASE_URL:
+        return None
+    api_key = SUPABASE_ANON_KEY or SUPABASE_KEY
+    if not api_key:
+        return None
 
-    if not SUPABASE_URL and not SUPABASE_JWT_SECRET:
-        logger.error('Neither SUPABASE_URL (for JWKS) nor SUPABASE_JWT_SECRET configured - cannot verify tokens')
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Auth not configured on the server',
-        )
-
+    url = f"{SUPABASE_URL.rstrip('/')}/auth/v1/user"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "apikey": api_key,
+    }
     try:
-        payload = _verify_token(creds.credentials)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                user_data = resp.json()
+                return user_data.get('id')
+    except Exception as exc:
+        logger.warning(f"Supabase Auth API token check failed: {exc}")
+    return None
+
+
+async def verify_jwt_token(token: str) -> str:
+    """
+    Verify JWT token and extract user_id (sub).
+    Raises HTTPException(401) on failure.
+    """
+    try:
+        payload = _verify_token_locally(token)
+        user_id = payload.get('sub')
+        if user_id:
+            return str(user_id)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Token expired - sign in again',
+            detail='Token has expired. Please sign in again.',
             headers={'WWW-Authenticate': 'Bearer'},
         )
     except jwt.InvalidTokenError as exc:
+        fallback_uid = await _verify_token_with_supabase_api(token)
+        if fallback_uid:
+            return str(fallback_uid)
+        logger.warning(f"JWT verification rejected: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f'Invalid token: {exc}',
+            detail='Invalid or expired authentication token.',
             headers={'WWW-Authenticate': 'Bearer'},
         )
     except Exception as exc:
-        # PyJWKClient can raise network errors fetching JWKS; surface them as 401
-        # so a misconfigured backend doesn't look like a 500 to the user.
-        logger.warning(f'JWT verification failed: {exc}')
+        fallback_uid = await _verify_token_with_supabase_api(token)
+        if fallback_uid:
+            return str(fallback_uid)
+        logger.warning(f"Token verification error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f'Token verification failed: {exc}',
+            detail='Authentication failed. Please sign in again.',
             headers={'WWW-Authenticate': 'Bearer'},
         )
 
-    user_id = payload.get('sub')
-    if not user_id:
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail='Token is missing user identifier (sub claim).',
+        headers={'WWW-Authenticate': 'Bearer'},
+    )
+
+
+async def get_current_user_id(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> str:
+    """Dependency for protected endpoints that require an authenticated user."""
+    if creds is None or not creds.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Token missing subject claim',
+            detail='Missing or invalid Authorization header.',
+            headers={'WWW-Authenticate': 'Bearer'},
         )
-    return user_id
+    return await verify_jwt_token(creds.credentials)
+
+
+async def get_optional_user_id(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> Optional[str]:
+    """Dependency for optional authentication (e.g. guest vs logged-in analysis)."""
+    if creds is None or not creds.credentials:
+        return None
+    try:
+        return await verify_jwt_token(creds.credentials)
+    except HTTPException:
+        return None
+
+
+async def get_current_user(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> str:
+    return await get_current_user_id(creds)
+

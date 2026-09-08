@@ -1,6 +1,7 @@
 @echo off
-title ATS Scorer - Frontend (Streamlit)
-echo Starting ATS Scorer Frontend on http://localhost:8501 ...
-cd /d "%~dp0"
-streamlit run frontend/streamlit_app.py
-pause
+title ATS Resume Scorer - Web Application
+echo ===================================================
+echo Opening http://localhost:8000 in your browser...
+echo (Ensure backend is running with run_backend.bat)
+echo ===================================================
+start http://localhost:8000

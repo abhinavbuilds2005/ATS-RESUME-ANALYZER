@@ -2,21 +2,18 @@ import pytest
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.api.auth import get_current_user
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def client():
-    # Override get_current_user dependency for testing authenticated endpoints
-    app.dependency_overrides[get_current_user] = lambda: "test-user-123"
     with TestClient(app) as test_client:
         yield test_client
-    app.dependency_overrides.clear()
+
 
 def test_root_endpoint(client):
     response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert "ATS Resume Analyzer API" in data["name"]
+    assert "text/html" in response.headers.get("content-type", "")
+    assert "ATS Resume Scorer" in response.text
 
 def test_health_check(client):
     response = client.get("/api/v1/health")
@@ -85,10 +82,14 @@ def test_generate_pdf_endpoint(client, sample_parsed_resume):
     assert len(response.content) > 0
     assert response.content.startswith(b"%PDF-")
 
+@patch("backend.api.auth.verify_jwt_token", new_callable=AsyncMock)
 @patch("backend.database.supabase_db.get_user_history", new_callable=AsyncMock)
-def test_history_endpoint_supabase_failure_handling(mock_get_history, client):
+def test_history_endpoint_supabase_failure_handling(mock_get_history, mock_verify, client):
     # When Supabase is unavailable or fails, get_history gracefully handles it
+    mock_verify.return_value = "user_test_123"
     mock_get_history.return_value = []
-    response = client.get("/api/v1/history")
+    response = client.get("/api/v1/history", headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert response.json() == []
+    mock_get_history.assert_called_once_with(user_id="user_test_123")
+

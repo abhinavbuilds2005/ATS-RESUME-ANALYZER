@@ -1,10 +1,11 @@
 import logging
+import re
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, Depends
 
-from backend.api.auth import get_current_user
 from backend.models.schemas import AnalysisResponse, ComponentScores, JDComparison, SkillValidationDetails
+from backend.api.auth import get_current_user_id, get_optional_user_id
 from backend.utils.file_utils import (
     get_default_grammar_results,
     get_default_location_results,
@@ -27,8 +28,9 @@ async def analyze_resume(
     request: Request,
     resume: UploadFile = File(..., description='Resume file — PDF or DOCX, max 5 MB'),
     job_description: str = Form('', description='Job description text (optional)'),
-    user_id: str = Depends(get_current_user),
+    user_id: Optional[str] = Depends(get_optional_user_id),
 ):
+
     warnings: List[str] = []
 
     nlp      = getattr(request.app.state, 'nlp', None)
@@ -123,12 +125,14 @@ async def analyze_resume(
         critical_issues=result.get('critical_issues', []),
         suggestions=result.get('suggestions', []),
         warnings=warnings,
+        llm_status=result.get('llm_status', 'active'),
     )
+
 
 
     try:
         from backend.database.supabase_db import save_analysis
-        await save_analysis(user_id, filename, result)
+        await save_analysis(filename, result, user_id=user_id)
     except Exception as exc:
         logger.warning(f'History save failed (non-blocking): {exc}')
 
@@ -144,39 +148,38 @@ async def health_check(request: Request):
     }
 
 @router.get('/history')
-async def get_history(user_id: str = Depends(get_current_user)):
-    """Return the signed-in user's past analyses (identity comes from the JWT)."""
+async def get_history(user_id: str = Depends(get_current_user_id)):
+    """Return past analyses strictly isolated to the authenticated user."""
     from backend.database.supabase_db import get_user_history
     try:
-        return await get_user_history(user_id)
+        return await get_user_history(user_id=user_id)
     except Exception as exc:
-        logger.error(f'History fetch failed: {exc}')
-        raise HTTPException(status_code=500, detail=f'Could not load history: {exc}')
+        logger.error(f'History fetch failed for user {user_id}: {exc}', exc_info=True)
+        raise HTTPException(status_code=500, detail='Could not load history. Please try again later.')
 
 
 @router.delete('/history/{analysis_id}')
 async def delete_history_entry(
     analysis_id: str,
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Delete one analysis from the signed-in user's history."""
+    """Delete one analysis from history strictly owned by the caller (prevents IDOR)."""
     from backend.database.supabase_db import delete_analysis
     try:
-        success = await delete_analysis(analysis_id, user_id)
+        success = await delete_analysis(analysis_id, user_id=user_id)
         if not success:
-            raise HTTPException(status_code=404, detail='Analysis not found or not owned by this user.')
+            raise HTTPException(status_code=404, detail='Analysis not found or access denied.')
         return {'status': 'deleted', 'id': analysis_id}
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f'History delete failed: {exc}')
-        raise HTTPException(status_code=500, detail=f'Could not delete: {exc}')
-    
+        logger.error(f'History delete failed for analysis {analysis_id}: {exc}', exc_info=True)
+        raise HTTPException(status_code=500, detail='Could not delete analysis. Please try again later.')
+
 
 @router.post('/generate-pdf')
 async def generate_pdf(
     data: AnalysisResponse,
-    user_id: str = Depends(get_current_user),
 ):
     from backend.services.report_generator import generate_html_reports
     from backend.services.pdf_export import generate_combined_pdf
@@ -193,29 +196,38 @@ async def generate_pdf(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": "attachment; filename=ats_report.pdf"
+                "Content-Disposition": 'attachment; filename="ats_report.pdf"'
             }
         )
     except Exception as e:
-        logger.error(f'Failed to generate PDF: {e}')
-        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {e}")
-    
+        logger.error(f'Failed to generate PDF: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate PDF report. Please try again later.")
+
 
 @router.get('/history/{analysis_id}/pdf')
 async def generate_history_pdf(
     analysis_id: str,
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
 ):
-    from backend.database.supabase_db import get_user_history
+    """Generate PDF for a past analysis strictly owned by the caller (prevents IDOR)."""
+    from backend.database.supabase_db import get_analysis_by_id
     from backend.services.report_generator import generate_html_reports
     from backend.services.pdf_export import generate_combined_pdf
     from fastapi.responses import Response
 
-    history = await get_user_history(user_id)
-    analysis_data = next((item["analysis_result"] for item in history if item["id"] == analysis_id), None)
+    doc = await get_analysis_by_id(analysis_id, user_id=user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analysis not found or access denied.")
 
+    analysis_data = doc.get("analysis_result")
     if not analysis_data:
-        raise HTTPException(status_code=404, detail="Analysis not found")
+        raise HTTPException(status_code=404, detail="Analysis report data unavailable.")
+
+    # Sanitize filename to prevent header injection or directory traversal
+    raw_filename = doc.get("filename") or f"ats_report_{analysis_id}"
+    safe_filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_filename)
+    if not safe_filename.lower().endswith(".pdf"):
+        safe_filename = f"{safe_filename}.pdf"
 
     try:
         def _build_pdf():
@@ -228,9 +240,9 @@ async def generate_history_pdf(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=ats_report_{analysis_id}.pdf"
+                "Content-Disposition": f'attachment; filename="{safe_filename}"'
             }
         )
     except Exception as e:
-        logger.error(f'Failed to generate PDF for history: {e}')
-        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {e}")
+        logger.error(f'Failed to generate PDF for history analysis {analysis_id}: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate PDF report. Please try again later.")

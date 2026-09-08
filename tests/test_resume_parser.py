@@ -1,4 +1,6 @@
 import pytest
+import PyPDF2
+
 from backend.services.resume_parser import (
     validate_file,
     extract_text,
@@ -73,3 +75,45 @@ def test_parse_resume_file_success(sample_pdf_bytes):
 def test_parse_resume_file_invalid():
     with pytest.raises(FileValidationError):
         parse_resume_file(b"bad content", "corrupt.pdf")
+
+def test_validate_file_fake_docx_zip_rejected():
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("random_file.txt", "not a word document")
+    is_valid, msg, file_type = validate_file(buf.getvalue(), "fake.docx")
+    assert is_valid is False
+    assert "not a valid Word document" in msg or "corrupted" in msg
+
+def test_path_traversal_sanitization(sample_pdf_bytes):
+    text, metadata = parse_resume_file(sample_pdf_bytes, "../../etc/passwd/resume.pdf")
+    assert metadata["filename"] == "resume.pdf"
+    assert "/" not in metadata["filename"] and "\\" not in metadata["filename"]
+
+def test_encrypted_pdf_handling(sample_pdf_bytes):
+    import io
+    reader = PyPDF2.PdfReader(io.BytesIO(sample_pdf_bytes))
+    writer = PyPDF2.PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+    writer.encrypt("secret_password")
+    enc_buf = io.BytesIO()
+    writer.write(enc_buf)
+    encrypted_bytes = enc_buf.getvalue()
+
+    with pytest.raises(FileParsingError) as exc_info:
+        extract_text_from_pdf(encrypted_bytes)
+    assert "password" in str(exc_info.value).lower() or "encrypt" in str(exc_info.value).lower()
+
+def test_scanned_pdf_without_text_raises_error():
+    from reportlab.pdfgen import canvas
+    import io
+    buf = io.BytesIO()
+    p = canvas.Canvas(buf)
+    p.rect(10, 10, 100, 100) # drawing only, no text
+    p.showPage()
+    p.save()
+    with pytest.raises(FileParsingError) as exc_info:
+        extract_text_from_pdf(buf.getvalue())
+    assert "no readable text" in str(exc_info.value).lower() or "scanned image" in str(exc_info.value).lower()
+

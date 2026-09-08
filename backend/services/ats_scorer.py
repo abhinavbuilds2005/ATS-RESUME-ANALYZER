@@ -4,11 +4,18 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from typing import Dict, List, Optional, Tuple
 
+from backend.core.config import SCORE_WEIGHTS
 from backend.utils.file_utils import log_warning
-from backend.core.config import SCORE_WEIGHTS, SENTENCE_TRANSFORMER_MODEL
-from backend.utils.matching import fuzzy_match_keywords
+from backend.utils.matching import (
+    fuzzy_match_keywords,
+    build_skill_pattern,
+    match_skill_in_text,
+    normalize_skill,
+)
+
 
 ZIP_CODE_PATTERN = r'\b\d{5}(?:-\d{4})?\b'
+PIN_CODE_PATTERN = r'\b[1-9][0-9]{5}\b'
 
 STREET_ADDRESS_PATTERN = (
     r'\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+'
@@ -36,6 +43,17 @@ COMMON_TYPOS = {
     'sucessfully': 'successfully',
     'enviroment': 'environment',
     'definately': 'definitely',
+    'goverment': 'government',
+    'maintainance': 'maintenance',
+    'independant': 'independent',
+    'neccessary': 'necessary',
+    'necesary': 'necessary',
+    'proffesional': 'professional',
+    'embarass': 'embarrass',
+    'collegue': 'colleague',
+    'calender': 'calendar',
+    'untill': 'until',
+    'truely': 'truly',
 }
 
 def analyze_grammar_and_spelling(text: str, nlp: Optional[spacy.Language] = None) -> Dict:
@@ -123,7 +141,7 @@ def analyze_grammar_and_spelling(text: str, nlp: Optional[spacy.Language] = None
         'penalty_applied': penalty,
         'error_free_percentage': max(0.0, 100.0 - total_errors * 5.0),
         '_component_status': 'available',
-        '_note': 'Rule-based grammar and spelling check completed.',
+        '_note': 'Lightweight rule-based text quality check completed (detects common typos, repeated words, and punctuation anomalies).',
     }
 
 def _tier_score(n: float, tiers:list)-> float:
@@ -133,47 +151,51 @@ def _tier_score(n: float, tiers:list)-> float:
     
     return 0.0
 
-#Location/privacy detection
+# Location/privacy detection
 def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
     locations = []
 
-    #method01: spacy NER
+    # Method 01: spacy NER (City, State, Country)
     doc = nlp(text)
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC']:
             locations.append({'text': ent.text, 'type': ent.label_.lower(), 'start': ent.start_char})
 
-    #moetod02: street address regx
+    # Method 02: street address regex
     for match in re.finditer(STREET_ADDRESS_PATTERN, text, re.IGNORECASE):
         locations.append({'text': match.group(), 'type': 'address', 'start': match.start()})
 
-    #method03: ZIP/PIN CODE REGEX PATTERN
+    # Method 03: US ZIP code regex pattern
     for match in re.finditer(ZIP_CODE_PATTERN, text):
         locations.append({'text': match.group(), 'type': 'zip', 'start': match.start()})
 
-    has_address = any(loc['type'] == 'address' for loc in locations)
-    has_zip     = any(loc['type'] == 'zip'     for loc in locations)
+    # Method 04: Indian 6-digit PIN code regex pattern
+    for match in re.finditer(PIN_CODE_PATTERN, text):
+        locations.append({'text': match.group(), 'type': 'pin', 'start': match.start()})
 
-    if has_address and has_zip:
+    has_address = any(loc['type'] == 'address' for loc in locations)
+    has_zip_or_pin = any(loc['type'] in ('zip', 'pin') for loc in locations)
+
+    # Distinguish safe city/state/country mentions (0 penalty) from excessive PII (full street addresses, PIN/ZIP codes)
+    if has_address and has_zip_or_pin:
         privacy_risk, penalty = 'high', 5.0
-    elif has_address or has_zip:
+    elif has_address:
         privacy_risk, penalty = 'high', 4.0
-    elif len(locations) > 3:
-        privacy_risk, penalty = 'medium', 3.0
-    elif locations:
-        privacy_risk, penalty = 'low', 2.0
+    elif has_zip_or_pin:
+        privacy_risk, penalty = 'medium', 2.0
     else:
+        # Standard city/state/country locations found in resume headers or experience entries
         privacy_risk, penalty = 'none', 0.0
 
     recommendations = []
     if not locations:
         recommendations.append("No privacy concerns detected.")
     if has_address:
-        recommendations.append("Remove full street addresses — ATS systems don't need this and it's a privacy risk.")
-    if has_zip:
-        recommendations.append("Remove zip codes — this level of location detail is unnecessary.")
-    if privacy_risk in ('low', 'medium') and not has_address and not has_zip:
-        recommendations.append("Consider reducing location mentions. 'City, State' in the contact header is sufficient.")
+        recommendations.append("Remove full street addresses — ATS systems do not require street or house numbers, and it poses a privacy risk.")
+    if has_zip_or_pin:
+        recommendations.append("Remove postal/ZIP/PIN codes — broad city/state or region is sufficient for ATS location screening.")
+    if not has_address and not has_zip_or_pin and locations:
+        recommendations.append("Safe location info detected (City/State/Country). No privacy risk found.")
 
     return {
         'location_found':     len(locations) > 0,
@@ -182,6 +204,7 @@ def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
         'recommendations':    recommendations,
         'penalty_applied':    penalty,
     }
+
 
 def _calculate_cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     """Fast cosine similarity between two precomputed vectors."""
@@ -243,8 +266,9 @@ def validate_skills_with_projects(
         matching_projects = []
         max_similarity    = 0.0
 
-        # Fast word-boundary check pattern
-        pattern = r'(?:\b|_)' + re.escape(skill_clean) + r'(?:\b|_)'
+        # Punctuation-safe word-boundary check pattern
+        pattern = build_skill_pattern(skill_clean)
+
         skill_vec = None  # Lazily compute skill embedding only if fast regex didn't match everything
 
         for p_item in project_items:

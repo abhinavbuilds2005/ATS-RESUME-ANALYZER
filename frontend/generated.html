@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Solstice Talent - ATS Resume Scorer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Literata:opsz,wght@7..72,600;7..72,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-surface": "#34302c",
+                      "on-tertiary-fixed-variant": "#5a422a",
+                      "on-error": "#ffffff",
+                      "primary-fixed": "#ffdad3",
+                      "tertiary-fixed": "#ffdcbe",
+                      "primary-fixed-dim": "#ffb4a5",
+                      "on-primary-container": "#5a0d02",
+                      "on-primary-fixed-variant": "#802918",
+                      "inverse-on-surface": "#f8efea",
+                      "surface-dim": "#e1d8d4",
+                      "on-tertiary-container": "#3c2711",
+                      "primary": "#9f402d",
+                      "on-primary": "#ffffff",
+                      "inverse-primary": "#ffb4a5",
+                      "surface-tint": "#9f402d",
+                      "on-primary-fixed": "#3e0500",
+                      "surface-container-highest": "#e9e1dc",
+                      "secondary-container": "#90f691",
+                      "surface": "#fff8f5",
+                      "on-surface": "#1e1b18",
+                      "surface-variant": "#e9e1dc",
+                      "primary-container": "#e2725b",
+                      "on-secondary-container": "#007322",
+                      "on-secondary": "#ffffff",
+                      "surface-container-high": "#efe6e2",
+                      "secondary-fixed-dim": "#77dc7a",
+                      "secondary": "#006e20",
+                      "outline": "#89726d",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed": "#2a1704",
+                      "on-secondary-fixed-variant": "#005316",
+                      "background": "#fff8f5",
+                      "on-tertiary": "#ffffff",
+                      "surface-bright": "#fff8f5",
+                      "tertiary-fixed-dim": "#e3c0a0",
+                      "secondary-fixed": "#93f993",
+                      "outline-variant": "#ddc0ba",
+                      "on-background": "#1e1b18",
+                      "on-error-container": "#93000a",
+                      "tertiary": "#74593f",
+                      "surface-container-low": "#fbf2ed",
+                      "on-surface-variant": "#56423e",
+                      "on-secondary-fixed": "#002105",
+                      "error-container": "#ffdad6",
+                      "surface-container": "#f5ece7",
+                      "tertiary-container": "#ac8d70",
+                      "surface-container-lowest": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "xl": "80px",
+                      "margin-desktop": "64px",
+                      "lg": "48px",
+                      "margin-mobile": "16px",
+                      "sm": "12px",
+                      "gutter": "24px",
+                      "md": "24px",
+                      "base": "8px",
+                      "xs": "4px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg-mobile": [
+                              "Literata"
+                      ],
+                      "label-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "display-lg": [
+                              "Literata"
+                      ],
+                      "label-sm": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "Literata"
+                      ],
+                      "body-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-md": [
+                              "Literata"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        /* Tactile Lift */
+        .tactile-lift {
+            border-bottom: 2px solid #1e1b18; /* on-surface */
+            box-shadow: 0 4px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+        .tactile-lift:active {
+            border-bottom-width: 1px;
+            transform: translateY(1px);
+            box-shadow: 0 2px 2px rgba(0,0,0,0.02);
+        }
+        .tactile-lift:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.08);
+        }
+        
+        /* Subtle Input Inner Shadow */
+        .input-carved {
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        /* Organic Tags */
+        .organic-tag {
+            border-radius: 12px 4px 10px 6px;
+        }
+        
+        /* Custom Toggle */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #9f402d; /* primary */
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #e2725b; /* primary-container */
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen flex flex-col">
+<!-- Top Navigation Bar -->
+<nav class="bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline w-full z-50 sticky top-0">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-[1280px] mx-auto h-xl">
+<!-- Brand -->
+<div class="flex items-center gap-sm cursor-pointer hover:opacity-80 transition-opacity">
+<img alt="Solstice Talent Logo" class="h-8 w-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgP6ZwXW68ktS_u1vPvDRrDkW8yKxwXgPscwXz7OjWpQATbi2_zKcKtve8pcFBRREKLt-MME23xgFEZ7uMApc4U9EePovs1wTBAzA34KVbkZOGlQq0RhinMo-4PhJXjmYMQ4XXlKMMRdkiYAD_97-3tSUnNi1A_UkoSsfEz9W7sP6xqzjtC-WgvhpMVPU9I2h4Q7hJAU6UecxEZumlg090gnPfO4hQQLJ0ljJ4P-L78GTeKcUXQdQ2kcYGegtkPKZtBgjr1abQjLw"/>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary hidden sm:block">Solstice Talent</span>
+</div>
+<!-- Navigation Links -->
+<ul class="hidden md:flex items-center gap-gutter">
+<li>
+<a class="font-label-md text-label-md text-primary dark:text-inverse-primary font-bold border-b-2 border-primary pb-1 block hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">Analyzer</a>
+</li>
+<li>
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant block hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">History</a>
+</li>
+<li>
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant block hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">Resources</a>
+</li>
+<li>
+<a class="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant block hover:text-primary dark:hover:text-inverse-primary transition-colors duration-200" href="#">API Docs</a>
+</li>
+</ul>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-md">
+<div class="hidden sm:flex items-center gap-xs bg-secondary-container text-on-secondary-container px-sm py-xs rounded-full font-label-sm text-label-sm">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                    AI Ready
+                </div>
+<button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined" data-icon="account_circle" style="font-variation-settings: 'FILL' 0;">account_circle</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-[1280px] mx-auto px-margin-mobile md:px-margin-desktop py-lg flex flex-col gap-xl">
+<!-- Hero Section -->
+<section class="text-center max-w-3xl mx-auto flex flex-col gap-md">
+<h1 class="font-display-lg text-display-lg text-primary">Optimize Your Resume For ATS &amp; Recruiters</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Go beyond the keyword. Get deep insights into how your resume is read by modern systems and human eyes.</p>
+</section>
+<!-- Analyzer Grid -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-lg items-start">
+<!-- Drag & Drop Zone -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col items-center justify-center text-center gap-md min-h-[400px] border-dashed border-2 hover:bg-surface-container-low transition-colors cursor-pointer group">
+<div class="w-24 h-24 rounded-full bg-surface-container-low group-hover:bg-tertiary-fixed flex items-center justify-center transition-colors">
+<span class="material-symbols-outlined text-4xl text-tertiary" data-icon="sunny">sunny</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Drop your resume here</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">PDF, DOCX up to 5MB</p>
+</div>
+<button class="bg-surface-container border border-outline-variant text-on-surface font-label-md text-label-md px-md py-sm rounded-lg hover:bg-surface-container-highest transition-colors mt-sm tactile-lift">Browse Files</button>
+</div>
+<!-- Job Description Area -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col gap-md h-full">
+<div class="flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface">Target Job Description</h3>
+<!-- Toggle -->
+<div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+<input class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-outline-variant z-10 transition-all right-6" id="toggle" name="toggle" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-6 rounded-full bg-surface-container-high cursor-pointer transition-colors" for="toggle"></label>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant -mt-sm">Paste a JD to get a targeted match score, or leave blank for a general ATS review.</p>
+<textarea class="w-full flex-grow resize-none border border-outline-variant rounded-lg p-sm font-body-md text-body-md text-on-surface bg-surface-bright focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary input-carved min-h-[200px]" placeholder="Paste job description here..."></textarea>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-lg py-md rounded-lg w-full tactile-lift text-center hover:bg-primary-container hover:text-on-primary-container transition-colors mt-auto">
+                    Analyze Resume
+                </button>
+</div>
+</section>
+<!-- Results Dashboard (Demonstration State) -->
+<section class="border-t border-outline-variant pt-xl flex flex-col gap-lg opacity-90 hover:opacity-100 transition-opacity duration-500">
+<div class="text-center mb-md">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Analysis Results</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Review your score and actionable insights.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+<!-- Main Gauge Card -->
+<div class="lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col items-center justify-center gap-md relative overflow-hidden">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Overall Match</h3>
+<!-- Circular Gauge (Visual Approx) -->
+<div class="relative w-48 h-48 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<!-- Background Track -->
+<circle cx="50" cy="50" fill="none" r="40" stroke="#f5ece7" stroke-width="12"></circle>
+<!-- Progress Track (92%) -->
+<circle class="text-secondary-container drop-shadow-sm" cx="50" cy="50" fill="none" r="40" stroke="#90f691" stroke-dasharray="251.2" stroke-dashoffset="20.09" stroke-linecap="round" stroke-width="12"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="font-display-lg text-display-lg text-on-surface">92</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">Excellent</span>
+</div>
+</div>
+</div>
+<!-- Detailed Metrics -->
+<div class="lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col gap-md">
+<h3 class="font-headline-md text-headline-md text-on-surface border-b border-outline-variant pb-sm">Score Breakdown</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-lg gap-y-md mt-sm">
+<!-- Metric 1 -->
+<div class="flex flex-col gap-xs group">
+<div class="flex justify-between items-end">
+<span class="font-label-md text-label-md text-on-surface group-hover:text-primary transition-colors">Formatting</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">100%</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container w-[100%] rounded-full"></div>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="flex flex-col gap-xs group">
+<div class="flex justify-between items-end">
+<span class="font-label-md text-label-md text-on-surface group-hover:text-primary transition-colors">Keywords</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">85%</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[85%] rounded-full"></div>
+</div>
+</div>
+<!-- Metric 3 -->
+<div class="flex flex-col gap-xs group">
+<div class="flex justify-between items-end">
+<span class="font-label-md text-label-md text-on-surface group-hover:text-primary transition-colors">Content Quality</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">90%</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-fixed w-[90%] rounded-full"></div>
+</div>
+</div>
+<!-- Metric 4 -->
+<div class="flex flex-col gap-xs group">
+<div class="flex justify-between items-end">
+<span class="font-label-md text-label-md text-on-surface group-hover:text-primary transition-colors">ATS Compatibility</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">95%</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary-fixed-dim w-[95%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Insights Lists -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<!-- Strengths -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg hover:border-secondary-container transition-colors">
+<div class="flex items-center gap-sm mb-md">
+<span class="material-symbols-outlined text-secondary" data-icon="check_circle">check_circle</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Key Strengths</h3>
+</div>
+<ul class="flex flex-col gap-sm">
+<li class="flex items-start gap-sm font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-secondary-container text-sm mt-1" data-icon="arrow_right">arrow_right</span>
+                            Strong action verbs used in recent experience.
+                        </li>
+<li class="flex items-start gap-sm font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-secondary-container text-sm mt-1" data-icon="arrow_right">arrow_right</span>
+                            Excellent formatting; highly parsable by standard ATS.
+                        </li>
+</ul>
+</div>
+<!-- Critical Issues -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg hover:border-primary-container transition-colors">
+<div class="flex items-center gap-sm mb-md">
+<span class="material-symbols-outlined text-primary" data-icon="error">error</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Critical Issues</h3>
+</div>
+<div class="flex flex-wrap gap-sm">
+<span class="bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm px-sm py-xs organic-tag cursor-default hover:bg-primary-fixed-dim transition-colors">Missing: Agile Methodologies</span>
+<span class="bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-sm text-label-sm px-sm py-xs organic-tag cursor-default hover:bg-tertiary-fixed-dim transition-colors">Missing: Python</span>
+<span class="bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm px-sm py-xs organic-tag cursor-default hover:bg-primary-fixed-dim transition-colors">Quantify achievements more</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Nav for Mobile -->
+<nav class="md:hidden bg-surface-container-highest border-t border-outline-variant fixed bottom-0 w-full z-50">
+<div class="flex justify-around items-center h-16">
+<a class="flex flex-col items-center justify-center w-full h-full text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="font-label-sm text-label-sm mt-1">Analyzer</span>
+</a>
+<a class="flex flex-col items-center justify-center w-full h-full text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="history" style="font-variation-settings: 'FILL' 0;">history</span>
+<span class="font-label-sm text-label-sm mt-1">History</span>
+</a>
+</div>
+</nav>
+<div class="h-16 md:hidden"></div> <!-- Spacer for mobile nav -->
+<script>
+        // Simple script for the toggle switch interaction demo
+        const toggle = document.getElementById('toggle');
+        const jdArea = document.querySelector('textarea');
+        
+        toggle.addEventListener('change', function() {
+            if(this.checked) {
+                jdArea.placeholder = "ATS General Review Mode Active. (JD input ignored)";
+                jdArea.disabled = true;
+                jdArea.classList.add('opacity-50');
+            } else {
+                jdArea.placeholder = "Paste job description here...";
+                jdArea.disabled = false;
+                jdArea.classList.remove('opacity-50');
+            }
+        });
+    </script>
+</body></html>

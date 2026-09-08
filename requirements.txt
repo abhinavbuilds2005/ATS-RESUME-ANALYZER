@@ -36,14 +36,8 @@ xhtml2pdf>=0.2.15
 reportlab>=4.0.0
 
 # ── Backend: external services ──
-httpx>=0.27                  # async Supabase REST client
+httpx>=0.27                  # async REST client
 groq>=0.13                   # Groq LLM client (0.13+ is required for httpx>=0.28 compatibility)
-PyJWT[crypto]>=2.8           # verifies Supabase access tokens (HS256)
-
-# ── Frontend ──
-streamlit>=1.32
-requests>=2.31
-supabase>=2.4                # frontend auth client (email/password + OAuth)
 
 # ── Testing ──
 pytest>=8.0

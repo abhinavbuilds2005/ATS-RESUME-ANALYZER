@@ -83,19 +83,12 @@ app.add_middleware(
 
 app.include_router(router)
 
-@app.get('/')
-async def root():
-    return {
-        'name':      'ATS Resume Analyzer API',
-        'version':   '2.0.0',
-        'endpoints': {
-            'POST   /api/v1/analyze-resume': 'Analyze a resume',
-            'GET    /api/v1/history':        'Get user history',
-            'DELETE /api/v1/history/:id':    'Delete a history entry',
-            'GET    /api/v1/health':         'Health check',
-            'POST   /api/v1/generate-pdf':   'Generate PDF report from data',
-        },
-    }
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / 'frontend'
+if _FRONTEND_DIR.exists():
+    app.mount('/', StaticFiles(directory=str(_FRONTEND_DIR), html=True), name='frontend')
 
 if __name__=='__main__':
     import uvicorn

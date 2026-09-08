@@ -51,3 +51,4 @@ class AnalysisResponse(BaseModel):
     jd_comparison: Optional[JDComparison] = None
     warnings: List[str] = Field(default_factory=list)
     interpretation: str = ""
+    llm_status: Optional[str] = "active"

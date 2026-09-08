@@ -5,8 +5,10 @@ __pycache__/
 
 # Environment & Secrets
 .env
+.env.*
 .env.local
 secrets.toml
+
 
 # Virtual Environment
 venv/

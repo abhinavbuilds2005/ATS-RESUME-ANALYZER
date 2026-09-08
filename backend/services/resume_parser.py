@@ -1,4 +1,7 @@
 import io
+import re
+import zipfile
+from pathlib import Path
 from typing import Optional, Tuple
 
 import pdfplumber
@@ -20,8 +23,21 @@ from backend.core.config import (
     SUPPORTED_MIME_TYPES
 )
 
+MAX_PDF_PAGES = 25
+
 class FileValidationError(Exception):
-    pass
+    def __init__(self, message: str, user_message: Optional[str] = None):
+        super().__init__(message)
+        self.user_message = user_message or message
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize uploaded filename to prevent directory traversal."""
+    if not filename:
+        return "resume"
+    clean = Path(filename).name
+    # Keep only safe alphanumeric, dots, dashes, underscores
+    clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', clean)
+    return clean or "resume"
 
 def validate_file(file_data: bytes, filename: str) -> Tuple[bool, str, Optional[str]]:
     file_size_bytes = len(file_data)
@@ -36,9 +52,10 @@ def validate_file(file_data: bytes, filename: str) -> Tuple[bool, str, Optional[
         ), None
 
     # Check extension
+    clean_name = sanitize_filename(filename)
     ext = ''
-    if filename and '.' in filename:
-        ext = '.' + filename.rsplit('.', 1)[-1].lower()
+    if '.' in clean_name:
+        ext = '.' + clean_name.rsplit('.', 1)[-1].lower()
 
     if ext == '.doc':
         return False, (
@@ -46,10 +63,23 @@ def validate_file(file_data: bytes, filename: str) -> Tuple[bool, str, Optional[
             'Please save or convert your document to .docx or .pdf and try again.'
         ), None
 
+    # Magic byte verification
     if file_data.startswith(b'%PDF-'):
         mime_type = 'application/pdf'
     elif file_data.startswith(b'PK\x03\x04'):
-        mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        # Validate that this zip is indeed a valid Word docx
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
+                namelist = set(zf.namelist())
+                if '[Content_Types].xml' in namelist or any(n.startswith('word/') for n in namelist):
+                    mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                else:
+                    return False, (
+                        'The uploaded file is a ZIP archive, but not a valid Word document (.docx). '
+                        'Please upload a genuine .docx or .pdf file.'
+                    ), None
+        except zipfile.BadZipFile:
+            return False, 'The uploaded .docx file is corrupted and cannot be read.', None
     else:
         mime_type = 'application/octet-stream'
 
@@ -77,7 +107,6 @@ def _extract_pdf_hyperlinks(file_data: bytes) -> str:
                     action = annot.get('/A', {})
                     uri = action.get('/URI', '')
                     if uri and isinstance(uri, (str, bytes)):
-                        # PyPDF2 may return bytes for URI values
                         if isinstance(uri, bytes):
                             uri = uri.decode('utf-8', errors='ignore')
                         uri = uri.strip()
@@ -90,13 +119,48 @@ def _extract_pdf_hyperlinks(file_data: bytes) -> str:
     return '\n'.join(urls)
 
 
+def _check_pdf_protection_and_pages(file_data: bytes):
+    """Check for password protection and excessive page counts."""
+    try:
+        reader = PyPDF2.PdfReader(io.BytesIO(file_data))
+        if reader.is_encrypted:
+            raise FileParsingError(
+                'The PDF is password-protected or encrypted. '
+                'Please remove password protection and re-upload your resume.'
+            )
+        page_count = len(reader.pages)
+        if page_count > MAX_PDF_PAGES:
+            raise FileParsingError(
+                f'PDF exceeds the maximum allowed length of {MAX_PDF_PAGES} pages '
+                f'({page_count} pages detected). Please upload a standard resume.'
+            )
+    except FileParsingError:
+        raise
+    except Exception:
+        # PyPDF2 couldn't parse headers; fall through to pdfplumber
+        pass
+
+
 def _extract_pdf_with_pdfplumber(file_data: bytes) -> str:
     text = ''
-    with pdfplumber.open(io.BytesIO(file_data)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + '\n'
+    try:
+        with pdfplumber.open(io.BytesIO(file_data)) as pdf:
+            if len(pdf.pages) > MAX_PDF_PAGES:
+                raise FileParsingError(
+                    f'PDF exceeds the maximum allowed length of {MAX_PDF_PAGES} pages '
+                    f'({len(pdf.pages)} pages detected).'
+                )
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + '\n'
+    except Exception as e:
+        if "password" in str(e).lower():
+            raise FileParsingError(
+                'The PDF is password-protected or encrypted. '
+                'Please remove password protection and re-upload your resume.'
+            ) from e
+        raise
 
     if not text.strip():
         raise TextExtractionError(
@@ -113,8 +177,19 @@ def _extract_pdf_with_pdfplumber(file_data: bytes) -> str:
 
 def _extract_pdf_with_pypdf2(file_data: bytes) -> str:
     text = ''
-    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_data))
-    for page in pdf_reader.pages:
+    reader = PyPDF2.PdfReader(io.BytesIO(file_data))
+    if reader.is_encrypted:
+        raise FileParsingError(
+            'The PDF is password-protected or encrypted. '
+            'Please remove password protection and re-upload your resume.'
+        )
+    if len(reader.pages) > MAX_PDF_PAGES:
+        raise FileParsingError(
+            f'PDF exceeds the maximum allowed length of {MAX_PDF_PAGES} pages '
+            f'({len(reader.pages)} pages detected).'
+        )
+
+    for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
             text += page_text + '\n'
@@ -133,25 +208,39 @@ def _extract_pdf_with_pypdf2(file_data: bytes) -> str:
 
 
 def extract_text_from_pdf(file_data: bytes) -> str:
+    _check_pdf_protection_and_pages(file_data)
+
     try: 
-        result, used_fallback=with_fallback(
-        _extract_pdf_with_pdfplumber, 
-        _extract_pdf_with_pypdf2, 
-        file_data, 
-        log_fallback=True
-    )
-    
+        result, used_fallback = with_fallback(
+            _extract_pdf_with_pdfplumber, 
+            _extract_pdf_with_pypdf2, 
+            file_data, 
+            log_fallback=True
+        )
         if used_fallback:
-            log_info('PDF EXTRACTION succeded using the PyPDF2 fallback', context='resume_parser')
+            log_info('PDF extraction succeeded using the PyPDF2 fallback', context='resume_parser')
+
+        # Check for scanned / image-only PDFs (no or minimal alphanumeric characters)
+        alphanumeric_count = len(re.findall(r'[a-zA-Z0-9]', result))
+        if alphanumeric_count < 20:
+            raise FileParsingError(
+                'No readable text could be found in the PDF. '
+                'The file appears to be a scanned image or empty. '
+                'Please upload a PDF containing selectable text or a DOCX document.'
+            )
+
         return result
         
+    except FileParsingError:
+        raise
     except Exception as e:
         log_error(e, context='extract_text_from_pdf')
         raise FileParsingError(
-            'Failed to extract text from PDF using both pdfplumber and PyPDF2. '
+            'Failed to extract text from PDF. '
             'The PDF may be corrupted, password-protected, or contain only scanned images. '
             'Please ensure it contains selectable text.'
         ) from e
+
     
 
 def extract_text_from_docx(file_data: bytes) -> str:
@@ -220,17 +309,18 @@ def extract_text(file_data: bytes, file_type: str) -> str:
         )
 
     
-def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
-    log_info(f'parsing file :{filename}', context='parse_Resume_file')
+def parse_resume_file(file_data: bytes, filename: str) -> Tuple[str, dict]:
+    clean_filename = sanitize_filename(filename)
+    log_info(f'parsing file :{clean_filename}', context='parse_resume_file')
 
-    #phase01:validate file
+    # phase 01: validate file
     try:
-        is_valid, error_msg, file_type=validate_file(file_data, filename)
+        is_valid, error_msg, file_type = validate_file(file_data, clean_filename)
         if not is_valid:
-            log_warning(f'valiudation failed for file {filename}', context='parse_resume_file')
+            log_warning(f'validation failed for file {clean_filename}', context='parse_resume_file')
             raise FileValidationError(error_msg)
     
-    except FileValidationError as e:
+    except FileValidationError:
         raise 
 
     except Exception as e:
@@ -239,11 +329,10 @@ def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
             'Could not validate the uploaded file. Please ensure it is a valid PDF or DOCX.'
         ) from e
     
-    #phase02: extraction of file
-
+    # phase 02: extraction of file
     try:
         text = extract_text(file_data, file_type)
-        log_info(f'Extracted {len(text)} chars from {filename}', context='parse_resume_file')
+        log_info(f'Extracted {len(text)} chars from {clean_filename}', context='parse_resume_file')
 
     except FileParsingError:
         raise   # Re-raise unchanged
@@ -256,10 +345,11 @@ def parse_resume_file(file_data: bytes, filename:str)->Tuple[str, dict]:
         ) from e
 
     metadata = {
-        'filename':        filename,
+        'filename':        clean_filename,
         'file_type':       file_type,
         'file_size_bytes': len(file_data),
         'text_length':     len(text),
         'success':         True,
     }
     return text, metadata
+

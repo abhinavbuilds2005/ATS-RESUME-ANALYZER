@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ATS Resume Scorer & Analyzer — Intelligent Resume & Job Description Matcher</title>
+  <meta name="description" content="Production-grade AI resume analyzer. Score resume ATS compatibility, match technical skills, validate experience context, and optimize for recruiter screening." />
+  
+  <!-- Modern SaaS Design System -->
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>" />
+
+</head>
+<body>
+
+  <!-- Application Navigation Bar -->
+  <header class="app-header">
+    <div class="container header-inner">
+      <a href="#" class="brand" aria-label="ATS Resume Analyzer Home">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <div class="brand-title">
+          <span>ATS Resume Analyzer</span>
+          <span class="brand-badge">AI v2.0</span>
+        </div>
+      </a>
+
+      <nav class="nav-actions">
+        <a href="#workspace" class="nav-btn" id="nav-analyze-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <span>Analyze</span>
+        </a>
+
+        <button class="nav-btn" id="nav-history-btn" aria-label="Open Analysis History">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>History</span>
+        </button>
+
+        <button class="nav-btn" id="nav-about-btn" aria-label="Scoring Methodology">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Methodology</span>
+        </button>
+
+        <button class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle light and dark mode" title="Toggle theme">
+          <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Application Body -->
+  <main class="container">
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-pill">
+        <span class="hero-pill-dot"></span>
+        <span id="system-status-indicator">AI Models Loaded & Ready</span>
+      </div>
+      <h1 class="hero-title">Optimize your resume for the job you want.</h1>
+      <p class="hero-subtitle">
+        Analyze your resume against ATS-friendly formatting, keywords, skills, content quality, and job requirements.
+      </p>
+
+      <div class="hero-trust-row">
+        <div class="hero-trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>PDF & DOCX Support</span>
+        </div>
+        <div class="hero-trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Linguistic NLP Analysis</span>
+        </div>
+        <div class="hero-trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Semantic Skill Matching</span>
+        </div>
+        <div class="hero-trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Actionable Feedback</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analysis Input Workspace -->
+    <section class="workspace-section" id="workspace">
+      <div class="workspace-grid">
+
+        <!-- Column 1: Resume Upload Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
+              <h2 class="card-title">Resume Document</h2>
+            </div>
+            <span class="card-badge-optional">Required</span>
+          </div>
+
+          <!-- Dropzone Element -->
+          <div class="upload-zone" id="resume-dropzone" tabindex="0" role="button" aria-label="Upload resume file (PDF or DOCX)">
+            <input type="file" id="resume-file" accept=".pdf,.docx" style="display: none;" />
+            <div class="upload-icon-circle">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <p class="upload-prompt">Drop your resume here, or <span>browse files</span></p>
+            <p class="upload-subtext">Supports PDF or DOCX format • Maximum 5 MB • Up to 25 pages</p>
+          </div>
+
+          <!-- Selected File Preview Card -->
+          <div class="file-selected-card" id="file-preview-card">
+            <div class="file-info-left">
+              <div class="file-type-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
+              <div class="file-details">
+                <span class="file-name" id="preview-filename">resume.pdf</span>
+                <span class="file-size" id="preview-filesize">0 KB</span>
+              </div>
+            </div>
+            <button class="file-remove-btn" id="remove-file-btn" aria-label="Remove uploaded resume" title="Remove file">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Inline Error Notification -->
+          <div class="upload-error-msg" id="upload-error">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="upload-error-text">Please upload a valid PDF or DOCX file.</span>
+          </div>
+        </div>
+
+        <!-- Column 2: Job Description Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                </svg>
+              </div>
+              <h2 class="card-title">Job Description</h2>
+            </div>
+            <span class="card-badge-optional">Optional</span>
+          </div>
+
+          <textarea 
+            id="jd-text" 
+            class="jd-textarea" 
+            placeholder="Paste the target job description here to check keyword alignment, skills gap, and semantic similarity..."
+            aria-label="Target job description (optional)"
+          ></textarea>
+
+          <div class="jd-footer">
+            <span>Add a JD for precision keyword & skill gap matching</span>
+            <span id="jd-char-count">0 characters</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Row -->
+      <div class="workspace-actions">
+        <button id="analyze-btn" class="btn-primary" disabled>
+          <span>Analyze Resume</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- Staged Analysis Loading Experience -->
+    <section class="loading-container" id="loading-box" aria-live="polite">
+      <div class="loading-spinner-ring"></div>
+      <h2 class="loading-title">Analyzing your resume...</h2>
+      <p class="loading-subtitle">Evaluating document against ATS parsing standards and recruiter heuristics</p>
+
+      <div class="stages-list">
+        <div class="stage-item pending" id="stage-1">
+          <div class="stage-icon">○</div>
+          <span>Validating document structure & extracting text</span>
+        </div>
+        <div class="stage-item pending" id="stage-2">
+          <div class="stage-icon">○</div>
+          <span>Linguistic NLP parsing & action verb detection</span>
+        </div>
+        <div class="stage-item pending" id="stage-3">
+          <div class="stage-icon">○</div>
+          <span>Chunked semantic similarity & skill correlation</span>
+        </div>
+        <div class="stage-item pending" id="stage-4">
+          <div class="stage-icon">○</div>
+          <span>Comparing against target job description</span>
+        </div>
+        <div class="stage-item pending" id="stage-5">
+          <div class="stage-icon">○</div>
+          <span>Compiling ATS readiness score & recommendations</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Dashboard Section -->
+    <section class="results-section" id="results" aria-live="polite">
+      
+      <!-- Results Header Bar -->
+      <div class="results-header-bar">
+        <div class="results-heading-group">
+          <h2 class="results-title">Analysis Overview</h2>
+          <div class="results-meta">
+            <span id="res-filename">Document: resume.pdf</span>
+            <span>&bull;</span>
+            <span id="res-date">Just now</span>
+            <span>&bull;</span>
+            <span class="ai-status-pill active" id="ai-status-pill">
+              <span class="ai-status-dot"></span>
+              <span id="ai-status-text">AI Enhanced</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="results-actions-group">
+          <button id="download-pdf-btn" class="btn-primary" style="padding: 0.625rem 1.25rem; font-size: 0.875rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Download PDF Report</span>
+          </button>
+          <button id="download-summary-btn" class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Export Summary</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Top Scorecard & 5-Dimension Metric Breakdown Grid -->
+      <div class="score-overview-grid">
+
+        <!-- Radial Gauge Hero Card -->
+        <div class="gauge-card">
+          <div class="gauge-svg-wrap">
+            <svg class="gauge-svg" viewBox="0 0 160 160">
+              <circle class="gauge-track" cx="80" cy="80" r="70"></circle>
+              <circle class="gauge-fill" id="gauge-fill-circle" cx="80" cy="80" r="70"></circle>
+            </svg>
+            <div class="gauge-center-text">
+              <span class="gauge-number" id="gauge-score-val">0</span>
+              <span class="gauge-max">out of 100</span>
+            </div>
+          </div>
+
+          <div class="tier-badge excellent" id="gauge-tier-badge">Excellent</div>
+          <p class="gauge-interpretation" id="gauge-interpretation-text">
+            Your resume demonstrates solid ATS compatibility with clear formatting and strong keywords.
+          </p>
+          <p class="score-disclaimer">
+            * Custom ATS-readiness metric evaluating structural parsing and keyword presence. Not an official commercial vendor score.
+          </p>
+        </div>
+
+        <!-- 5-Dimension Score Breakdown -->
+        <div class="breakdown-card">
+          <div class="breakdown-header">ATS Dimension Breakdown</div>
+
+          <div class="breakdown-items-list">
+            <!-- 1. Formatting -->
+            <div class="breakdown-item">
+              <div class="breakdown-label-row">
+                <span class="breakdown-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                  </svg>
+                  <span>Formatting & Structure</span>
+                </span>
+                <span class="breakdown-score" id="score-formatting-text">0 / 20</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill primary" id="progress-formatting"></div>
+              </div>
+            </div>
+
+            <!-- 2. Keywords & Skills -->
+            <div class="breakdown-item">
+              <div class="breakdown-label-row">
+                <span class="breakdown-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  </svg>
+                  <span>Keywords & Technical Skills</span>
+                </span>
+                <span class="breakdown-score" id="score-keywords-text">0 / 25</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill primary" id="progress-keywords"></div>
+              </div>
+            </div>
+
+            <!-- 3. Content Quality & Impact -->
+            <div class="breakdown-item">
+              <div class="breakdown-label-row">
+                <span class="breakdown-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                  <span>Content Quality & Impact</span>
+                </span>
+                <span class="breakdown-score" id="score-content-text">0 / 25</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill primary" id="progress-content"></div>
+              </div>
+            </div>
+
+            <!-- 4. Skill Validation -->
+            <div class="breakdown-item">
+              <div class="breakdown-label-row">
+                <span class="breakdown-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  <span>Skill Experience Validation</span>
+                </span>
+                <span class="breakdown-score" id="score-skill-val-text">0 / 15</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill success" id="progress-skill-val"></div>
+              </div>
+            </div>
+
+            <!-- 5. ATS Compatibility & Privacy -->
+            <div class="breakdown-item">
+              <div class="breakdown-label-row">
+                <span class="breakdown-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  <span>ATS Parseability & Privacy</span>
+                </span>
+                <span class="breakdown-score" id="score-ats-comp-text">0 / 15</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill success" id="progress-ats-comp"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Secondary Analytics: JD Match & Skill Validation -->
+      <div class="analytics-grid">
+        
+        <!-- JD Match Card -->
+        <div class="card" id="jd-match-card" style="display: none;">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+              </div>
+              <h3 class="card-title">Job Description Alignment</h3>
+            </div>
+            <span class="card-badge-optional" id="jd-match-pct-badge">0% Match</span>
+          </div>
+
+          <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            Semantic Similarity Index: <strong id="jd-semantic-score" style="color: var(--primary);">0.00</strong>
+          </p>
+
+          <div style="margin-bottom: 1rem;">
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.03em;">
+              Matched Keywords & Skills
+            </span>
+            <div class="chips-wrap" id="matched-keywords-chips"></div>
+            <button class="show-more-btn" id="show-more-matched-btn" style="display: none;">Show more</button>
+          </div>
+
+          <div>
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--danger-text); letter-spacing: 0.03em;">
+              Missing Requirements (Skills Gap)
+            </span>
+            <div class="chips-wrap" id="missing-keywords-chips"></div>
+            <button class="show-more-btn" id="show-more-missing-btn" style="display: none;">Show more</button>
+          </div>
+        </div>
+
+        <!-- Skill Experience Validation Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <div class="card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              <h3 class="card-title">Skill Context Validation</h3>
+            </div>
+            <span class="card-badge-optional" id="skill-val-pct-badge">0% Verified</span>
+          </div>
+
+          <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            Skills backed by actual descriptions in work history or projects:
+          </p>
+
+          <div style="margin-bottom: 1rem;">
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--success-text); letter-spacing: 0.03em;">
+              Demonstrated In Experience
+            </span>
+            <div class="chips-wrap" id="validated-skills-chips"></div>
+            <button class="show-more-btn" id="show-more-val-btn" style="display: none;">Show more</button>
+          </div>
+
+          <div>
+            <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--warning-text); letter-spacing: 0.03em;">
+              Claimed Without Project Evidence
+            </span>
+            <div class="chips-wrap" id="unvalidated-skills-chips"></div>
+            <button class="show-more-btn" id="show-more-unval-btn" style="display: none;">Show more</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Content Quality, Grammar & Privacy Grid -->
+      <div class="analytics-grid">
+
+        <!-- Grammar & Text Quality Card -->
+        <div class="metric-stat-card">
+          <div class="metric-stat-header">
+            <span class="metric-stat-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+              <span>Grammar & Text Quality</span>
+            </span>
+            <span class="chip chip-neutral" id="grammar-status-chip">Checked</span>
+          </div>
+          <div class="metric-stat-value" id="grammar-score-display">100%</div>
+          <p class="metric-stat-desc" id="grammar-desc">
+            Deterministic rule-based text quality audit checking for typos, repeated consecutive words, and punctuation glitches.
+          </p>
+        </div>
+
+        <!-- Privacy & Personal Information Card -->
+        <div class="metric-stat-card">
+          <div class="metric-stat-header">
+            <span class="metric-stat-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>Privacy & Location Screening</span>
+            </span>
+            <span class="chip chip-success" id="privacy-status-chip">Safe</span>
+          </div>
+          <div class="metric-stat-value" id="privacy-status-title">No Sensitive PII Leaks</div>
+          <p class="metric-stat-desc" id="privacy-desc">
+            Standard city/state listings are safe. Full street addresses and ZIP/PIN codes are flagged to prevent oversharing.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Actionable Optimization Recommendations Section -->
+      <div class="recommendations-section">
+        <h3 class="section-header-title">Optimization Recommendations</h3>
+        <div class="recommendations-list" id="detailed-feedback-list">
+          <!-- Dynamic recommendations inserted here -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- History Modal Dialog -->
+  <div class="modal-backdrop" id="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="history-modal-title">Analysis History</h3>
+        <button class="modal-close-btn" id="close-history-btn" aria-label="Close history modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="history-loading" style="text-align: center; padding: 2rem; color: var(--text-muted); display: none;">
+          <div class="loading-spinner-ring" style="width: 28px; height: 28px;"></div>
+          <p>Loading previous analyses...</p>
+        </div>
+
+        <div id="history-empty" class="history-empty-state" style="display: none;">
+          <div class="history-empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+          </div>
+          <h4>No analyses yet</h4>
+          <p style="font-size: 0.84375rem; margin-top: 0.25rem;">Upload a resume to generate your first ATS evaluation.</p>
+        </div>
+
+        <!-- Desktop History Table -->
+        <div class="history-table-wrap" id="history-table-wrap" style="display: none;">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Score</th>
+                <th>Date</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body"></tbody>
+          </table>
+        </div>
+
+        <!-- Mobile History Cards -->
+        <div class="history-cards-mobile" id="history-cards-mobile"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Methodology Modal Dialog -->
+  <div class="modal-backdrop" id="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="about-modal-title">ATS Scoring Methodology</h3>
+        <button class="modal-close-btn" id="close-about-btn" aria-label="Close modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;">
+        <p style="margin-bottom: 1rem;">
+          Our ATS Resume Analyzer uses a transparent, five-dimension scoring model grounded in natural language processing (spaCy) and semantic embeddings (Sentence Transformers).
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 0.875rem; margin-bottom: 1.5rem;">
+          <div>
+            <strong style="color: var(--text-primary);">1. Formatting & Structure (20 pts):</strong>
+            <p>Validates standard resume sections (Experience, Education, Skills, Summary), bullet points, and linear document readability.</p>
+          </div>
+          <div>
+            <strong style="color: var(--text-primary);">2. Keywords & Technical Skills (25 pts):</strong>
+            <p>Accurately matches technical skills, programming languages, and tools using boundary-aware regex (handles C++, C#, .NET, Node.js).</p>
+          </div>
+          <div>
+            <strong style="color: var(--text-primary);">3. Content Quality & Impact (25 pts):</strong>
+            <p>Evaluates strong action verbs, quantifiable achievements ($ or % metrics), and rule-based text quality (typos, repeated words).</p>
+          </div>
+          <div>
+            <strong style="color: var(--text-primary);">4. Skill Context Validation (15 pts):</strong>
+            <p>Ensures claimed skills are corroborated with semantic context in your project descriptions and work history.</p>
+          </div>
+          <div>
+            <strong style="color: var(--text-primary);">5. ATS Compatibility & Privacy (15 pts):</strong>
+            <p>Checks document parseability while flagging privacy risks like full residential street addresses or postal codes.</p>
+          </div>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 0.75rem;">
+          Disclaimer: This analysis provides heuristic optimization recommendations to improve resume parsing. It does not guarantee employment or predict third-party recruiter selection.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container" aria-live="assertive"></div>
+
+  <!-- Application Footer -->
+  <footer class="app-footer">
+    <div class="container">
+      <p>ATS Resume Analyzer &bull; Built with FastAPI, spaCy & Sentence Transformers</p>
+    </div>
+  </footer>
+
+  <!-- Application Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

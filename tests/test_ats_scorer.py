@@ -105,3 +105,64 @@ def test_detect_location_info(nlp):
     assert results["privacy_risk"] in ("medium", "high")
     assert results["penalty_applied"] > 0
     assert len(results["recommendations"]) > 0
+
+def test_detect_location_indian_pin_code(nlp):
+    text_with_pin = "Aarav Sharma\nBengaluru, Karnataka 560001\naarav@example.com"
+    results = detect_location_info(text_with_pin, nlp)
+
+    assert results["location_found"] is True
+    assert any(loc["type"] == "pin" and loc["text"] == "560001" for loc in results["detected_locations"])
+    assert results["privacy_risk"] == "medium"
+    assert results["penalty_applied"] == 2.0
+
+def test_detect_location_safe_city_state_incurs_zero_penalty(nlp):
+    text_safe_location = "Priya Patel\nSeattle, Washington\nEmail: priya@example.com\nPhone: (206) 555-0199"
+    results = detect_location_info(text_safe_location, nlp)
+
+    assert results["location_found"] is True
+    assert results["privacy_risk"] == "none"
+    assert results["penalty_applied"] == 0.0
+
+def test_overall_score_capped_strictly_at_100():
+    # Build a resume state that achieves top scores and maximum bonuses
+    sample_text = "\n".join([f"• Achieved 50% revenue growth saving $500k across {i} projects" for i in range(25)])
+    parsed = {
+        "experience": [{"job_title": "Lead Engineer", "description": "Designed systems"} for _ in range(5)],
+        "education": [{"degree": "B.S. CS", "institution": "Top University"}],
+        "skills": [f"Skill_{i}" for i in range(25)],
+        "professional_summary": "Highly experienced software architect with 10+ years in distributed systems.",
+        "projects": [{"title": f"Project {i}", "description": "System"} for i in range(5)],
+        "keywords": [f"Keyword_{i}" for i in range(30)],
+        "action_verbs": [f"Verb_{i}" for i in range(25)],
+    }
+    grammar_clean = {
+        "total_errors": 0,
+        "penalty_applied": 0.0,
+        "_component_status": "available",
+    }
+    location_clean = {
+        "location_found": False,
+        "penalty_applied": 0.0,
+        "privacy_risk": "none",
+    }
+    skill_val_perfect = {
+        "validated_skills": [{"skill": f"Skill_{i}", "projects": ["P1"]} for i in range(25)],
+        "unvalidated_skills": [],
+        "validation_percentage": 1.0,
+        "validation_score": 15.0,
+    }
+
+    result = calculate_overall_score(
+        text=sample_text,
+        parsed_resume=parsed,
+        skills=parsed["skills"],
+        keywords=parsed["keywords"],
+        action_verbs=parsed["action_verbs"],
+        skill_validation_results=skill_val_perfect,
+        grammar_results=grammar_clean,
+        location_results=location_clean,
+    )
+
+    assert result["overall_score"] <= 100.0
+    assert result["overall_score"] >= 95.0
+
