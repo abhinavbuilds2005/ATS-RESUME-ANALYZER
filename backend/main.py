@@ -15,10 +15,9 @@ from backend.api.routes import router
 
 logger=logging.getLogger('ats_resume_scorer')
 
-@asynccontextmanager
-async def lifespan(app:FastAPI):
-    logger.info('Starting ATS Resume Analyzer API...')
+import asyncio
 
+def _load_models_sync(app: FastAPI):
     logger.info(f'Loading spaCy NLP model: {SPACY_MODEL_PRIMARY}')
     import spacy
     nlp = None
@@ -54,9 +53,21 @@ async def lifespan(app:FastAPI):
         logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
     except Exception as exc:
         logger.error(f'Error loading SentenceTransformer ({SENTENCE_TRANSFORMER_MODEL}): {exc}')
-        raise exc
 
     logger.info('All models loaded. API is ready to serve requests.')
+
+async def _load_models_background(app: FastAPI):
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _load_models_sync, app)
+
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    logger.info('Starting ATS Resume Analyzer API...')
+    app.state.nlp = None
+    app.state.embedder = None
+
+    # Load heavy neural networks in background so port binds instantly in <100ms
+    asyncio.create_task(_load_models_background(app))
 
     yield
 
