@@ -1,15 +1,34 @@
 import os
 import sys
-import subprocess
+import socket
 
-print("=== DEBUGGING PORT & PROCESSES ===", flush=True)
+print("=== DEBUGGING PORT & SOCKETS ===", flush=True)
 print(f"PID: {os.getpid()}", flush=True)
-print("ENV:", {k: v for k, v in os.environ.items() if "PORT" in k or "GRADIO" in k or "SPACE" in k or "ZERO" in k}, flush=True)
+
 try:
-    netstat = subprocess.check_output("ss -tulpn 2>&1 || netstat -tulpn 2>&1 || true", shell=True, text=True)
-    print("OPEN PORTS:\n" + netstat, flush=True)
+    with open('/proc/net/tcp', 'r') as f:
+        print("TCP sockets in /proc/net/tcp:\n" + "".join(f.readlines()[:10]), flush=True)
 except Exception as e:
-    print("Could not get open ports:", e, flush=True)
+    print("Could not read /proc/net/tcp:", e, flush=True)
+
+selected_port = None
+for p in range(7860, 7875):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            pass
+        s.bind(('0.0.0.0', p))
+        s.close()
+        print(f"--> Port {p} is OPEN and CAN BIND!", flush=True)
+        if selected_port is None:
+            selected_port = p
+    except Exception as e:
+        print(f"--> Port {p} CANNOT bind: {e}", flush=True)
+
+print(f"SELECTED PORT: {selected_port}", flush=True)
 print("==================================", flush=True)
 
 try:
@@ -26,5 +45,6 @@ demo = gr.Blocks(title="ATS Resume Analyzer")
 app = gr.mount_gradio_app(app, demo, path="/gradio")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT") or os.getenv("GRADIO_SERVER_PORT") or 7860)
+    port = selected_port or int(os.getenv("PORT") or os.getenv("GRADIO_SERVER_PORT") or 7860)
+    print(f"Starting server on 0.0.0.0:{port} ...", flush=True)
     uvicorn.run(app, host="0.0.0.0", port=port)
