@@ -41,7 +41,7 @@ groq>=0.13                   # Groq LLM client (0.13+ is required for httpx>=0.2
 PyJWT[crypto]>=2.8.0         # JWT verification for Supabase Auth
 
 # ── Space SDK ──
-gradio>=4.0
+gradio>=5.0.0
 
 # ── spaCy Model ──
 https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl
