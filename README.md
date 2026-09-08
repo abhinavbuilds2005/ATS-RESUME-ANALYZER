@@ -1,3 +1,13 @@
+---
+title: ATS Resume Analyzer
+emoji: 📄
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AI-Powered ATS Resume Scorer & Analyzer
 
 A high-performance web application that analyzes resumes, checks formatting and structural compliance, matches technical skills against job descriptions (JDs), validates claimed skills against experience entries, and provides actionable optimization feedback.

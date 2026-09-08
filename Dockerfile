@@ -1,5 +1,8 @@
 FROM python:3.11-slim-bookworm
 
+# Create non-root user for Hugging Face Spaces compatibility
+RUN useradd -m -u 1000 user
+
 WORKDIR /app
 
 # Install system dependencies for WeasyPrint and file processing
@@ -20,13 +23,19 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt && \
-    python -m spacy download en_core_web_md && \
-    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+    python -m spacy download en_core_web_md
 
-# Copy application source code
-COPY . .
+# Pre-download SentenceTransformer model into shared cache directory
+ENV HF_HOME=/app/.cache/huggingface
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
-EXPOSE 8000
+# Copy application source code and set ownership
+COPY . /app
+RUN chown -R user:user /app
 
-ENV PORT=8000
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+USER user
+
+EXPOSE 7860
+ENV PORT=7860
+
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
