@@ -1,4 +1,9 @@
 import os
+try:
+    import spaces
+except ImportError:
+    pass
+
 import gradio as gr
 import uvicorn
 from backend.main import app
