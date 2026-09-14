@@ -24,3 +24,5 @@ services:
         sync: false
       - key: SENTENCE_TRANSFORMER_MODEL
         value: all-MiniLM-L6-v2
+      - key: DISABLE_EMBEDDER
+        value: "true"

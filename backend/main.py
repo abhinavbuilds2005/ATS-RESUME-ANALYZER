@@ -55,9 +55,10 @@ def _load_models_sync(app: FastAPI):
     except Exception:
         pass
 
-    disable_embedder = os.getenv('DISABLE_EMBEDDER', 'false').lower() in ('true', '1', 'yes')
+    is_render = os.getenv('RENDER', '').lower() == 'true'
+    disable_embedder = os.getenv('DISABLE_EMBEDDER', 'true' if is_render else 'false').lower() in ('true', '1', 'yes')
     if disable_embedder:
-        logger.info('DISABLE_EMBEDDER is enabled. Skipping SentenceTransformer to conserve memory.')
+        logger.info('DISABLE_EMBEDDER active (or on Render free tier). Skipping heavy SentenceTransformer to stay under 512MB RAM.')
         app.state.embedder = None
         app.state.models_initialized = True
         return

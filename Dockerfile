@@ -37,5 +37,6 @@ USER user
 
 EXPOSE 10000
 ENV PORT=10000
+ENV DISABLE_EMBEDDER=true
 
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
