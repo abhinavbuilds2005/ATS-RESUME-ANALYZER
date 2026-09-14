@@ -49,12 +49,25 @@ def _load_models_sync(app: FastAPI):
                         nlp = None
 
     app.state.nlp = nlp
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+
+    disable_embedder = os.getenv('DISABLE_EMBEDDER', 'false').lower() in ('true', '1', 'yes')
+    if disable_embedder:
+        logger.info('DISABLE_EMBEDDER is enabled. Skipping SentenceTransformer to conserve memory.')
+        app.state.embedder = None
+        app.state.models_initialized = True
+        return
 
     logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
     try:
         try:
             import torch
             torch.set_num_threads(1)
+            torch.set_grad_enabled(False)
         except Exception:
             pass
         from sentence_transformers import SentenceTransformer
@@ -64,6 +77,11 @@ def _load_models_sync(app: FastAPI):
         app.state.embedder = None
         logger.exception(f'Error loading SentenceTransformer ({SENTENCE_TRANSFORMER_MODEL}): {exc}')
     finally:
+        try:
+            import gc
+            gc.collect()
+        except Exception:
+            pass
         app.state.models_initialized = True
 
     logger.info('Model loading completed. API readiness status updated.')

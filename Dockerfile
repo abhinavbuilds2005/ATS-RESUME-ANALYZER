@@ -23,7 +23,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt && \
-    python -m spacy download en_core_web_md
+    python -m spacy download en_core_web_sm
 
 # Pre-download SentenceTransformer model into shared cache directory
 ENV HF_HOME=/app/.cache/huggingface
