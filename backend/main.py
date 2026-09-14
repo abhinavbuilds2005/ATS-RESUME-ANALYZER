@@ -52,6 +52,11 @@ def _load_models_sync(app: FastAPI):
 
     logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
     try:
+        try:
+            import torch
+            torch.set_num_threads(1)
+        except Exception:
+            pass
         from sentence_transformers import SentenceTransformer
         app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
         logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
