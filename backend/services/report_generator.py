@@ -21,6 +21,15 @@ def format_date(value, fmt='%B %d, %Y at %I:%M %p'):
 
 env.filters['format_date'] = format_date
 
+def _safe_float(val, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def generate_html_reports(analysis_data: Dict) -> Dict[str, str]:
     # 1. Extract timestamp 
     now = datetime.now().isoformat()
@@ -33,11 +42,11 @@ def generate_html_reports(analysis_data: Dict) -> Dict[str, str]:
         cs = cs.__dict__
 
     component_scores = {
-        'formatting':       float(cs.get('formatting', 0)),
-        'keywords':         float(cs.get('keywords', 0)),
-        'content':          float(cs.get('content', 0)),
-        'skill_validation': float(cs.get('skill_validation', 0)),
-        'ats_compatibility': float(cs.get('ats_compatibility', 0)),
+        'formatting':       _safe_float(cs.get('formatting', 0)),
+        'keywords':         _safe_float(cs.get('keywords', 0)),
+        'content':          _safe_float(cs.get('content', 0)),
+        'skill_validation': _safe_float(cs.get('skill_validation', 0)),
+        'ats_compatibility': _safe_float(cs.get('ats_compatibility', 0)),
     }
 
     # Progress-bar percentages (used in Report 1's visual breakdown)

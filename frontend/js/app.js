@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   let selectedFile = null;
   let currentAnalysisData = null;
+  const API_BASE = (window.API_BASE_URL || window.__API_BASE__ || '').replace(/\/+$/, '');
 
   // ==========================================================================
   // DOM Elements
@@ -105,23 +106,60 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
+  // 2.5 API Error Formatter
+  // ==========================================================================
+  function formatApiError(errData) {
+    if (!errData) return 'An unexpected error occurred.';
+    const detail = errData.detail !== undefined ? errData.detail : errData;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      const messages = detail.map(item => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          return item.msg || item.message || JSON.stringify(item);
+        }
+        return String(item);
+      }).filter(Boolean);
+      return messages.join('; ') || 'Validation error in request.';
+    }
+    if (detail && typeof detail === 'object') {
+      return detail.message || detail.msg || JSON.stringify(detail);
+    }
+    return String(detail);
+  }
+
+  // ==========================================================================
   // 3. Backend Health Check
   // ==========================================================================
   async function checkBackendHealth() {
     try {
-      const res = await fetch('/api/v1/health');
+      const res = await fetch(`${API_BASE}/api/v1/health`);
       if (res.ok) {
         const data = await res.json();
-        if (data.nlp_loaded && data.embedder_loaded) {
+        const dot = systemStatusIndicator.parentElement.querySelector('.hero-pill-dot');
+        if (data.ready || (data.nlp_loaded && data.embedder_loaded)) {
           systemStatusIndicator.textContent = 'AI Models Loaded & Ready';
+          if (dot) dot.style.backgroundColor = 'var(--success)';
+        } else if (data.status === 'degraded' || data.nlp_loaded || data.embedder_loaded) {
+          systemStatusIndicator.textContent = 'AI Models Degraded (Fallback Active)';
+          if (dot) dot.style.backgroundColor = 'var(--warning)';
         } else {
           systemStatusIndicator.textContent = 'Models Initializing...';
+          if (dot) dot.style.backgroundColor = 'var(--warning)';
         }
+      } else {
+        systemStatusIndicator.textContent = 'Backend Service Unavailable';
+        systemStatusIndicator.parentElement.style.borderColor = 'var(--danger-border)';
+        const dot = systemStatusIndicator.parentElement.querySelector('.hero-pill-dot');
+        if (dot) dot.style.backgroundColor = 'var(--danger)';
       }
     } catch (_) {
       systemStatusIndicator.textContent = 'Backend Offline';
       systemStatusIndicator.parentElement.style.borderColor = 'var(--danger-border)';
-      systemStatusIndicator.parentElement.querySelector('.hero-pill-dot').style.backgroundColor = 'var(--danger)';
+      const dot = systemStatusIndicator.parentElement.querySelector('.hero-pill-dot');
+      if (dot) dot.style.backgroundColor = 'var(--danger)';
     }
   }
   checkBackendHealth();
@@ -279,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('/api/v1/analyze-resume', {
+      const res = await fetch(`${API_BASE}/api/v1/analyze-resume`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: formData,
@@ -288,8 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(stageInterval);
 
       if (!res.ok) {
-        const errorJson = await res.json().catch(() => ({ detail: 'Analysis could not be completed.' }));
-        throw new Error(errorJson.detail || 'Analysis could not be completed. Please check your document and try again.');
+        const errorJson = await res.json().catch(() => ({ detail: `Analysis failed with status ${res.status}.` }));
+        const message = formatApiError(errorJson) || 'Analysis could not be completed. Please check your document and try again.';
+        throw new Error(message);
       }
 
       currentAnalysisData = await res.json();
@@ -604,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadPdfBtn.innerHTML = '<span>Generating PDF...</span>';
 
     try {
-      const res = await fetch('/api/v1/generate-pdf', {
+      const res = await fetch(`${API_BASE}/api/v1/generate-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentAnalysisData),
@@ -696,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
     historyCardsMobile.innerHTML = '';
 
     try {
-      const res = await fetch('/api/v1/history', { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE}/api/v1/history`, { headers: getAuthHeaders() });
       historyLoading.style.display = 'none';
 
       if (res.status === 401) {
@@ -775,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function downloadHistoryPdf(id, filename) {
     try {
-      const res = await fetch(`/api/v1/history/${id}/pdf`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE}/api/v1/history/${id}/pdf`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('PDF retrieval failed.');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -795,7 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function deleteHistoryRecord(id, tr, mobCard) {
     if (!confirm('Are you sure you want to delete this analysis record?')) return;
     try {
-      const res = await fetch(`/api/v1/history/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE}/api/v1/history/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Delete failed.');
       tr.remove();
       mobCard.remove();

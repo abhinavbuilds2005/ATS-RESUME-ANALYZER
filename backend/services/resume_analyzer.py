@@ -1,3 +1,4 @@
+import re
 import spacy
 from sentence_transformers import SentenceTransformer
 from typing import Dict, List, Optional
@@ -14,10 +15,33 @@ from backend.services.ats_scorer import (
 )
 
 
+def _safe_int(val, default: int = 0, min_val: int = 0) -> int:
+    """Safely convert untrusted/LLM values to an integer, guarding against None, strings, and types."""
+    if val is None or isinstance(val, bool):
+        return default
+    try:
+        if isinstance(val, str):
+            val_clean = val.strip()
+            if not val_clean:
+                return default
+            # Extract leading numeric portion (e.g. '24 months' -> '24')
+            m = re.match(r'^-?\d+(?:\.\d+)?', val_clean)
+            if m:
+                val_clean = m.group(0)
+            else:
+                return default
+            result = int(float(val_clean))
+        else:
+            result = int(float(val))
+        return max(min_val, result) if min_val is not None else result
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
 def analyze_full_resume(
     resume_text: str,
-    nlp: spacy.Language,
-    embedder: SentenceTransformer,
+    nlp: Optional[spacy.Language] = None,
+    embedder: Optional[SentenceTransformer] = None,
     job_description: Optional[str] = None,
 ) -> Dict:
     import logging
@@ -33,7 +57,7 @@ def analyze_full_resume(
     action_verbs    = parsed_resume.get('action_verbs', [])
 
     experience_months = sum(
-        int(e.get('duration_months', 0))
+        _safe_int(e.get('duration_months'))
         for e in parsed_resume.get('experience', [])
         if isinstance(e, dict)
     )

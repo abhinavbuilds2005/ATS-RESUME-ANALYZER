@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List, Dict, Set, Optional
 import numpy as np
@@ -89,14 +90,21 @@ def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200, max_chunks
     return chunks[:max_chunks]
 
 
+logger = logging.getLogger('ats_resume_scorer')
+
+
 def calculate_semantic_similarity(
-    resume_text: str, jd_text: str, embedder: SentenceTransformer
+    resume_text: str, jd_text: str, embedder: Optional[SentenceTransformer] = None
 ) -> float:
     """
     Calculate semantic similarity using chunk-based embeddings.
     Processes full documents instead of discarding text after 5,000 characters.
     """
     if not resume_text or not jd_text or not resume_text.strip() or not jd_text.strip():
+        return 0.0
+
+    if embedder is None:
+        logger.warning("Embedder is unavailable. Returning 0.0 semantic similarity.")
         return 0.0
 
     resume_chunks = chunk_text(resume_text)
@@ -209,13 +217,17 @@ def analyze_skills_gap(
 def calculate_match_percentage(
     resume_keywords: List[str],
     jd_keywords: List[str],
-    semantic_similarity: float,
+    semantic_similarity: Optional[float] = None,
+    semantic_available: bool = True,
 ) -> float:
     if not jd_keywords:
         return 0.0
     matched = identify_matched_keywords(resume_keywords, jd_keywords)
     keyword_overlap = len(matched) / len(jd_keywords)
-    match_pct = (keyword_overlap * 0.6 + semantic_similarity * 0.4) * 100
+    if not semantic_available or semantic_similarity is None:
+        match_pct = keyword_overlap * 100.0
+    else:
+        match_pct = (keyword_overlap * 0.6 + semantic_similarity * 0.4) * 100.0
     return float(np.clip(match_pct, 0.0, 100.0))
 
 
@@ -225,16 +237,17 @@ def compare_resume_with_jd(
     resume_skills: List[str],
     jd_text: str,
     jd_keywords: List[str],
-    embedder: SentenceTransformer,
+    embedder: Optional[SentenceTransformer] = None,
     nlp: Optional[spacy.Language] = None,
 ) -> Dict:
     all_resume_terms    = list(set((resume_keywords or []) + (resume_skills or [])))
-    semantic_similarity = calculate_semantic_similarity(resume_text, jd_text, embedder)
+    semantic_available  = embedder is not None
+    semantic_similarity = calculate_semantic_similarity(resume_text, jd_text, embedder) if semantic_available else 0.0
     matched_keywords    = identify_matched_keywords(all_resume_terms, jd_keywords)
     missing_keywords    = identify_missing_keywords(all_resume_terms, jd_keywords)
     skills_gap          = analyze_skills_gap(resume_skills, jd_text, nlp)
     match_percentage    = calculate_match_percentage(
-        all_resume_terms, jd_keywords, semantic_similarity
+        all_resume_terms, jd_keywords, semantic_similarity, semantic_available=semantic_available
     )
 
     return {
@@ -243,6 +256,7 @@ def compare_resume_with_jd(
         'matched_keywords':    matched_keywords,
         'missing_keywords':    missing_keywords,
         'skills_gap':          skills_gap,
+        'semantic_available':  semantic_available,
     }
 
 

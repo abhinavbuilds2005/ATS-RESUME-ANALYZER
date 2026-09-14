@@ -19,7 +19,10 @@ def test_health_check(client):
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] in ("healthy", "degraded", "initializing")
+    assert isinstance(data["ready"], bool)
+    assert isinstance(data["nlp_loaded"], bool)
+    assert isinstance(data["embedder_loaded"], bool)
 
 def test_cors_headers(client):
     response = client.options(

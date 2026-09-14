@@ -78,7 +78,7 @@ Resume Text:
 
 def _call_groq(client: Groq, system_prompt: str, user_prompt: str) -> str:
     candidates = [GROQ_MODEL] if GROQ_MODEL else []
-    for fallback in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-70b-versatile", "gemma2-9b-it"]:
+    for fallback in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192"]:
         if fallback not in candidates:
             candidates.append(fallback)
 
@@ -360,11 +360,28 @@ def _validate_resume_result(result: dict) -> dict:
         exp.setdefault("description", "")
         for key in ("job_title", "company", "start_date", "end_date", "description"):
             exp[key] = str(exp[key] or "")
-        #Ensure duration_months is an int
-        try:
-            exp["duration_months"] = int(exp["duration_months"])
-        except (ValueError, TypeError):
+        #Ensure duration_months is a safe non-negative int
+        val = exp.get("duration_months")
+        if val is None or isinstance(val, bool):
             exp["duration_months"] = 0
+        else:
+            try:
+                if isinstance(val, str):
+                    val_str = re.match(r'^-?\d+(?:\.\d+)?', val.strip())
+                    exp["duration_months"] = max(0, int(float(val_str.group(0)))) if val_str else 0
+                else:
+                    exp["duration_months"] = max(0, int(float(val)))
+            except (ValueError, TypeError, OverflowError):
+                exp["duration_months"] = 0
+
+    #Validate education entries
+    result['education'] = [edu for edu in result['education'] if isinstance(edu, dict)]
+    for edu in result['education']:
+        edu.setdefault("degree", "")
+        edu.setdefault("institution", "")
+        edu.setdefault("year", "")
+        for key in ("degree", "institution", "year"):
+            edu[key] = str(edu[key] or "")
 
     #Validate project entries
     result['projects'] = [proj for proj in result['projects'] if isinstance(proj, dict)]

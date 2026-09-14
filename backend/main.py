@@ -42,19 +42,26 @@ def _load_models_sync(app: FastAPI):
                     logger.info(f'Downloaded and loaded {SPACY_MODEL_SECONDARY} (fallback)')
                 except Exception as exc2:
                     logger.error(f'Failed to load secondary model {SPACY_MODEL_SECONDARY}: {exc2}. Initializing basic English pipeline...')
-                    nlp = spacy.blank('en')
+                    try:
+                        nlp = spacy.blank('en')
+                    except Exception as exc3:
+                        logger.exception(f'Failed to initialize blank English pipeline: {exc3}')
+                        nlp = None
 
     app.state.nlp = nlp
 
     logger.info(f'Loading SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}')
-    from sentence_transformers import SentenceTransformer
     try:
+        from sentence_transformers import SentenceTransformer
         app.state.embedder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
         logger.info(f'Loaded {SENTENCE_TRANSFORMER_MODEL}')
     except Exception as exc:
-        logger.error(f'Error loading SentenceTransformer ({SENTENCE_TRANSFORMER_MODEL}): {exc}')
+        app.state.embedder = None
+        logger.exception(f'Error loading SentenceTransformer ({SENTENCE_TRANSFORMER_MODEL}): {exc}')
+    finally:
+        app.state.models_initialized = True
 
-    logger.info('All models loaded. API is ready to serve requests.')
+    logger.info('Model loading completed. API readiness status updated.')
 
 async def _load_models_background(app: FastAPI):
     loop = asyncio.get_running_loop()
@@ -65,6 +72,7 @@ async def lifespan(app:FastAPI):
     logger.info('Starting ATS Resume Analyzer API...')
     app.state.nlp = None
     app.state.embedder = None
+    app.state.models_initialized = False
 
     # Load heavy neural networks in background so port binds instantly in <100ms
     asyncio.create_task(_load_models_background(app))
@@ -102,10 +110,12 @@ if _FRONTEND_DIR.exists():
     app.mount('/', StaticFiles(directory=str(_FRONTEND_DIR), html=True), name='frontend')
 
 if __name__=='__main__':
+    import os
     import uvicorn
+    port = int(os.environ.get('PORT', 8000))
     uvicorn.run(
         'backend.main:app',
         host    = '0.0.0.0',
-        port    = 8000,
+        port    = port,
         reload  = True,    # Auto-restart on code changes (dev only)
     )

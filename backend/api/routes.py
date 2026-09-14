@@ -84,9 +84,20 @@ async def analyze_resume(
     #Extract jd_comparison details
     jd_comparison_result = None
     if result.get('jd_comparison'):
+        raw_match = result['jd_comparison'].get('match_percentage', 0.0)
+        raw_semantic = result['jd_comparison'].get('semantic_similarity', 0.0)
+        try:
+            match_pct = float(raw_match if raw_match is not None else 0.0)
+        except (ValueError, TypeError):
+            match_pct = 0.0
+        try:
+            semantic_sim = float(raw_semantic if raw_semantic is not None else 0.0)
+        except (ValueError, TypeError):
+            semantic_sim = 0.0
+
         jd_comparison_result = JDComparison(
-            match_percentage=round(float(result['jd_comparison'].get('match_percentage', 0.0)), 1),
-            semantic_similarity=round(float(result['jd_comparison'].get('semantic_similarity', 0.0)), 3),
+            match_percentage=round(match_pct, 1),
+            semantic_similarity=round(semantic_sim, 3),
             matched_keywords=result['jd_comparison'].get('matched_keywords', [])[:20],
             missing_keywords=result['jd_comparison'].get('missing_keywords', [])[:15],
             skills_gap=result['jd_comparison'].get('skills_gap', [])[:10],
@@ -97,12 +108,18 @@ async def analyze_resume(
     
 
     svd_raw = result.get('skill_validation_details') or {}
+    raw_val_pct = svd_raw.get('validation_pct', 0.0)
+    try:
+        val_pct = float(raw_val_pct if raw_val_pct is not None else 0.0)
+    except (ValueError, TypeError):
+        val_pct = 0.0
+
     skill_val_details = SkillValidationDetails(
         validated       = svd_raw.get('validated', []),
         unvalidated     = svd_raw.get('unvalidated', []),
-        total           = svd_raw.get('total', 0),
-        validated_count = svd_raw.get('validated_count', 0),
-        validation_pct  = svd_raw.get('validation_pct', 0.0),
+        total           = int(svd_raw.get('total', 0) or 0),
+        validated_count = int(svd_raw.get('validated_count', 0) or 0),
+        validation_pct  = round(val_pct, 1),
     )
 
     response = AnalysisResponse(
@@ -140,11 +157,24 @@ async def analyze_resume(
 
 @router.get('/health')
 async def health_check(request: Request):
-    """Health check — confirms models are loaded and the API is ready."""
+    """Health check — reports application and AI model readiness."""
+    nlp_loaded = getattr(request.app.state, 'nlp', None) is not None
+    embedder_loaded = getattr(request.app.state, 'embedder', None) is not None
+    ready = nlp_loaded and embedder_loaded
+    models_initialized = getattr(request.app.state, 'models_initialized', True)
+
+    if ready:
+        status = 'healthy'
+    elif not models_initialized:
+        status = 'initializing'
+    else:
+        status = 'degraded'
+
     return {
-        'status':          'healthy',
-        'nlp_loaded':      request.app.state.nlp is not None,
-        'embedder_loaded': request.app.state.embedder is not None,
+        'status':          status,
+        'ready':           ready,
+        'nlp_loaded':      nlp_loaded,
+        'embedder_loaded': embedder_loaded,
     }
 
 @router.get('/history')

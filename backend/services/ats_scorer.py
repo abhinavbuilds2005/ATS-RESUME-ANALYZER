@@ -151,15 +151,18 @@ def _tier_score(n: float, tiers:list)-> float:
     
     return 0.0
 
-# Location/privacy detection
-def detect_location_info(text: str, nlp: spacy.Language) -> Dict:
+def detect_location_info(text: str, nlp: Optional[spacy.Language] = None) -> Dict:
     locations = []
 
     # Method 01: spacy NER (City, State, Country)
-    doc = nlp(text)
-    for ent in doc.ents:
-        if ent.label_ in ['GPE', 'LOC']:
-            locations.append({'text': ent.text, 'type': ent.label_.lower(), 'start': ent.start_char})
+    if nlp is not None:
+        try:
+            doc = nlp(text)
+            for ent in doc.ents:
+                if ent.label_ in ['GPE', 'LOC']:
+                    locations.append({'text': ent.text, 'type': ent.label_.lower(), 'start': ent.start_char})
+        except Exception as exc:
+            log_warning(f"spaCy location NER failed: {exc}", context="detect_location_info")
 
     # Method 02: street address regex
     for match in re.finditer(STREET_ADDRESS_PATTERN, text, re.IGNORECASE):
@@ -221,7 +224,7 @@ def validate_skills_with_projects(
     skills: List[str],
     projects: List[Dict],
     experience_entries: List[Dict],
-    embedder: SentenceTransformer,
+    embedder: Optional[SentenceTransformer] = None,
     threshold: float = 0.6,
 ) -> Dict:
     
@@ -232,6 +235,7 @@ def validate_skills_with_projects(
             'validation_percentage': 0.0,
             'skill_project_mapping': {},
             'validation_score':      0.0,
+            'semantic_validation_available': embedder is not None,
         }
 
     experience_text = ' '.join(
@@ -240,20 +244,20 @@ def validate_skills_with_projects(
         if isinstance(e, dict)
     ).strip()
 
-    # Pre-extract and pre-encode project texts ONCE
+    # Pre-extract and pre-encode project texts ONCE (if embedder is available)
     project_items = []
     for project in projects:
         title = project.get('title', 'Untitled Project')
         p_text = f"{project.get('title', '')} {project.get('description', '')}".strip()
-        p_vec = embedder.encode(p_text, convert_to_tensor=False) if p_text else None
+        p_vec = embedder.encode(p_text, convert_to_tensor=False) if (p_text and embedder is not None) else None
         project_items.append({
             'title': title,
             'text': p_text,
             'vector': p_vec,
         })
 
-    # Pre-encode experience text ONCE
-    exp_vec = embedder.encode(experience_text, convert_to_tensor=False) if experience_text else None
+    # Pre-encode experience text ONCE (if embedder is available)
+    exp_vec = embedder.encode(experience_text, convert_to_tensor=False) if (experience_text and embedder is not None) else None
 
     validated_skills      = []
     unvalidated_skills    = []
@@ -276,7 +280,7 @@ def validate_skills_with_projects(
             if p_item['text'] and re.search(pattern, p_item['text'], re.IGNORECASE):
                 matching_projects.append(p_item['title'])
                 max_similarity = max(max_similarity, 1.0)
-            elif p_item['vector'] is not None:
+            elif p_item['vector'] is not None and embedder is not None:
                 # 2. Semantic embedding check
                 if skill_vec is None:
                     skill_vec = embedder.encode(skill_clean, convert_to_tensor=False)
@@ -290,7 +294,7 @@ def validate_skills_with_projects(
                 max_similarity = max(max_similarity, 1.0)
                 if 'Experience Section' not in matching_projects:
                     matching_projects.append('Experience Section')
-            elif exp_vec is not None:
+            elif exp_vec is not None and embedder is not None:
                 if skill_vec is None:
                     skill_vec = embedder.encode(skill_clean, convert_to_tensor=False)
                 sim = _calculate_cosine_similarity(skill_vec, exp_vec)
@@ -314,6 +318,7 @@ def validate_skills_with_projects(
         'validation_percentage': validation_percentage,
         'skill_project_mapping': skill_project_mapping,
         'validation_score':      validation_score,
+        'semantic_validation_available': embedder is not None,
     }
 
 

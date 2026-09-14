@@ -9,7 +9,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: ALLOWED_ORIGINS
-        value: "*"
+        value: "https://ats-resume-analyzer.onrender.com,https://elevatecv-ai.streamlit.app"
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
