@@ -209,15 +209,21 @@ async def delete_history_entry(
 
 @router.post('/generate-pdf')
 async def generate_pdf(
-    data: AnalysisResponse,
+    request: Request,
 ):
     from backend.services.report_generator import generate_html_reports
     from backend.services.pdf_export import generate_combined_pdf
     from fastapi.responses import Response
 
     try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    try:
         def _build_pdf():
-            html_docs = generate_html_reports(data.model_dump())
+            payload = data.model_dump() if hasattr(data, 'model_dump') else data
+            html_docs = generate_html_reports(payload)
             return generate_combined_pdf(html_docs)
 
         pdf_bytes = await run_in_threadpool(_build_pdf)
@@ -231,7 +237,8 @@ async def generate_pdf(
         )
     except Exception as e:
         logger.error(f'Failed to generate PDF: {e}', exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate PDF report. Please try again later.")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {str(e)}")
+
 
 
 @router.get('/history/{analysis_id}/pdf')

@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   let selectedFile = null;
   let currentAnalysisData = null;
-  const API_BASE = (window.API_BASE_URL || window.__API_BASE__ || '').replace(/\/+$/, '');
+  const API_BASE = (window.API_BASE_URL || window.__API_BASE__ || (window.location.port && window.location.port !== '8000' && window.location.protocol.startsWith('http') ? `${window.location.protocol}//${window.location.hostname}:8000` : '')).replace(/\/+$/, '');
 
   // ==========================================================================
   // DOM Elements
@@ -649,7 +649,14 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify(currentAnalysisData),
       });
 
-      if (!res.ok) throw new Error('PDF generation service failed.');
+      if (!res.ok) {
+        let errMsg = 'PDF generation service failed.';
+        try {
+          const errData = await res.json();
+          errMsg = formatApiError(errData) || errData.detail || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -815,7 +822,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function downloadHistoryPdf(id, filename) {
     try {
       const res = await fetch(`${API_BASE}/api/v1/history/${id}/pdf`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('PDF retrieval failed.');
+      if (!res.ok) {
+        let errMsg = 'PDF retrieval failed.';
+        try {
+          const errData = await res.json();
+          errMsg = formatApiError(errData) || errData.detail || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

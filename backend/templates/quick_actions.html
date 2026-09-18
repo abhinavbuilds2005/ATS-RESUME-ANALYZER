@@ -4,244 +4,207 @@
     <meta charset="UTF-8">
     <title>Job Description Match Analysis</title>
     <style>
+        @page {
+            size: letter;
+            margin: 12mm 15mm 12mm 15mm;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             color: #1e293b;
             margin: 0;
-            padding: 40px 50px;
-            line-height: 1.6;
-            background: #fff;
+            padding: 0;
+            font-size: 10px;
+            line-height: 1.35;
         }
 
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 3px solid #1e293b;
-            padding-bottom: 14px;
-            margin-bottom: 32px;
+        /* ── Header Bar ── */
+        table.page-header {
+            width: 100%;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
         }
-        .page-header .report-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#64748b; }
-        .page-header .date         { font-size:12px; color:#64748b; }
-
-        h1.report-title { font-size:28px; font-weight:900; color:#0f172a; margin:0 0 28px 0; }
-
-        h2 {
-            font-size: 16px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 1.5px; color: #334155;
-            margin: 32px 0 16px 0; padding-bottom: 8px;
-            border-bottom: 2px solid #e2e8f0;
+        .report-label {
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #64748b;
+        }
+        .report-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 2px 0 0 0;
+        }
+        .header-date {
+            font-size: 9px;
+            color: #64748b;
+            text-align: right;
         }
 
-        /* ── Match Score Cards ── */
-        .match-cards {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 28px;
+        /* ── Match Cards Table ── */
+        table.match-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 10px 0;
+            margin-bottom: 12px;
         }
         .match-card {
-            flex: 1;
-            text-align: center;
-            padding: 20px 16px;
-            border-radius: 10px;
             border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
         }
-        .match-card-number { font-size: 42px; font-weight: 900; line-height: 1; }
-        .match-card-label  { font-size: 12px; font-weight: 700; text-transform: uppercase;
-                             letter-spacing: 1px; color: #64748b; margin-top: 6px; }
-        .card-keyword  { background: #eff6ff; }
-        .card-semantic { background: #f5f3ff; }
-
-        /* ── Keyword Pills ── */
-        .pill-section { margin-bottom: 24px; }
-        .pill-group-label {
-            font-size: 13px;
+        .card-kw  { background: #eff6ff; border-color: #bfdbfe; }
+        .card-sem { background: #f5f3ff; border-color: #ddd6fe; }
+        .match-num {
+            font-size: 26px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .match-lbl {
+            font-size: 8.5px;
             font-weight: 700;
-            color: #475569;
-            margin-bottom: 10px;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-top: 3px;
         }
-        .pill-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
-        .pill {
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .pill-matched  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .pill-missing  { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-        .pill-gap      { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
 
-        /* ── Skills Gap ── */
+        h2.section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #0f172a;
+            margin: 10px 0 6px 0;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #cbd5e1;
+        }
+
+        /* ── Pill Elements ── */
+        .pill {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 8.5px;
+            font-weight: 600;
+            margin: 2px 3px;
+        }
+        .pill-matched { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .pill-missing { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
         .gap-item {
-            padding: 9px 14px;
+            padding: 4px 8px;
             border-left: 3px solid #f59e0b;
             background: #fffbeb;
-            border-radius: 0 6px 6px 0;
-            margin-bottom: 8px;
-            font-size: 13px;
+            border-radius: 0 4px 4px 0;
+            margin-bottom: 4px;
+            font-size: 9px;
             color: #78350f;
         }
 
-        /* ── Suggestions ── */
-        .suggestion {
-            padding: 12px 16px;
+        .tip-box {
+            padding: 6px 10px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            font-size: 13px;
+            border-radius: 5px;
+            font-size: 9px;
             color: #334155;
+            margin-top: 8px;
         }
-        .suggestion strong { color: #0f172a; }
 
-        /* ── No JD Message ── */
-        .no-jd-box {
-            text-align: center;
-            padding: 48px 32px;
-            background: #f8fafc;
-            border: 2px dashed #cbd5e1;
-            border-radius: 12px;
-            color: #64748b;
-        }
-        .no-jd-icon { font-size: 36px; margin-bottom: 16px; }
-        .no-jd-title { font-size: 18px; font-weight: 700; color: #334155; margin-bottom: 8px; }
-        .no-jd-tip { font-size: 13px; line-height: 1.7; max-width: 420px; margin: 0 auto; }
-
+        /* ── Footer ── */
         .footer {
-            margin-top: 48px; padding-top: 16px;
+            margin-top: 14px;
+            padding-top: 6px;
             border-top: 1px solid #e2e8f0;
-            font-size: 11px; color: #94a3b8;
-            display: flex; justify-content: space-between;
+            font-size: 8px;
+            color: #94a3b8;
+            width: 100%;
         }
     </style>
 </head>
 <body>
 
-    <div class="page-header">
-        <div class="report-label">ATS Resume Score Report</div>
-        <div class="date">{{ timestamp | format_date }}</div>
-    </div>
-
-    <h1 class="report-title">Job Description Match Analysis</h1>
+    <!-- ── Header ── -->
+    <table class="page-header">
+        <tr>
+            <td>
+                <div class="report-label">Target Role Alignment</div>
+                <div class="report-title">Job Description Comparison &amp; Gap Analysis</div>
+            </td>
+            <td class="header-date">
+                Report Date: {{ timestamp | format_date }}
+            </td>
+        </tr>
+    </table>
 
     {% if jd_analysis %}
-
-        <!-- ── Match Score Cards ── -->
-        <div class="match-cards">
-            <div class="match-card card-keyword">
-                {% set kw_pct = jd_analysis.match_percentage | float %}
-                <div class="match-card-number" style="color:
-                    {% if kw_pct >= 70 %}#16a34a{% elif kw_pct >= 45 %}#d97706{% else %}#dc2626{% endif %};">
-                    {{ "%.0f" | format(kw_pct) }}%
+    <!-- ── Match Cards ── -->
+    {% set kw_pct = (jd_analysis.match_percentage if jd_analysis and jd_analysis.match_percentage is not none else 0) | float %}
+    {% set sem_pct = ((jd_analysis.semantic_similarity if jd_analysis and jd_analysis.semantic_similarity is not none else 0) | float) * 100 %}
+    <table class="match-table">
+        <tr>
+            <td class="match-card card-kw" style="width: 50%;">
+                <div class="match-num" style="color: {% if kw_pct >= 70 %}#16a34a{% elif kw_pct >= 45 %}#d97706{% else %}#dc2626{% endif %};">
+                    {{ kw_pct | safe_num }}%
                 </div>
-                <div class="match-card-label">Keyword Match</div>
-            </div>
-            <div class="match-card card-semantic">
-                {% set sem_pct = (jd_analysis.semantic_similarity | float) * 100 %}
-                <div class="match-card-number" style="color:
-                    {% if sem_pct >= 70 %}#16a34a{% elif sem_pct >= 45 %}#d97706{% else %}#dc2626{% endif %};">
-                    {{ "%.0f" | format(sem_pct) }}%
+                <div class="match-lbl">Direct Keyword Alignment</div>
+            </td>
+            <td class="match-card card-sem" style="width: 50%;">
+                <div class="match-num" style="color: {% if sem_pct >= 70 %}#16a34a{% elif sem_pct >= 45 %}#d97706{% else %}#dc2626{% endif %};">
+                    {{ sem_pct | safe_num }}%
                 </div>
-                <div class="match-card-label">Semantic Similarity</div>
-            </div>
-        </div>
+                <div class="match-lbl">Semantic Relevance Match</div>
+            </td>
+        </tr>
+    </table>
 
-        <!-- ── Matched Keywords ── -->
-        {% if jd_analysis.matched_keywords %}
-        <h2>Matched Keywords</h2>
-        <div class="pill-section">
-            <div class="pill-group-label">These keywords from the JD appear in your resume:</div>
-            <div class="pill-wrap">
-                {% for kw in jd_analysis.matched_keywords %}
-                <span class="pill pill-matched">{{ kw }}</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- ── Missing Keywords ── -->
-        {% if jd_analysis.missing_keywords %}
-        <h2>Missing Keywords ({{ jd_analysis.missing_keywords | length }})</h2>
-        <div class="pill-section">
-            <div class="pill-group-label">Important JD keywords NOT found in your resume:</div>
-            <div class="pill-wrap">
-                {% for kw in jd_analysis.missing_keywords %}
-                <span class="pill pill-missing">{{ kw }}</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- ── Skills Gap ── -->
-        {% if jd_analysis.skills_gap %}
-        <h2>Skills Gap ({{ jd_analysis.skills_gap | length }})</h2>
-        <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
-            The job description mentions these skills that weren't found in your resume.
-            Add them if you have experience with them.
-        </p>
-        {% for skill in jd_analysis.skills_gap %}
-        {% if skill and skill | length > 1 %}
-        <div class="gap-item">Consider adding: <strong>{{ skill }}</strong></div>
-        {% endif %}
+    <!-- ── Matched Keywords ── -->
+    {% if jd_analysis.matched_keywords %}
+    <h2 class="section-title">Matched Job Description Keywords</h2>
+    <div>
+        {% for kw in jd_analysis.matched_keywords[:16] %}
+        <span class="pill pill-matched">✓ {{ kw }}</span>
         {% endfor %}
-        {% endif %}
-
-        <!-- ── Improvement Suggestions ── -->
-        <h2>Improvement Suggestions</h2>
-
-        {% if jd_analysis.match_percentage | float < 40 %}
-        <div class="suggestion">
-            <strong>Tailor Your Professional Summary:</strong> Your keyword match is critically low ({{ "%.0f" | format(jd_analysis.match_percentage | float) }}%).
-            Rewrite your Professional Summary to explicitly reference the role title and 2–3 core
-            requirements from the job description.
-        </div>
-        {% endif %}
-
-        {% if jd_analysis.missing_keywords %}
-        <div class="suggestion">
-            <strong>Incorporate Missing Keywords Naturally:</strong>
-            Weave the missing keywords (shown in red above) into your experience bullets or skills section.
-            Do not keyword-stuff — use them in context where you genuinely have experience.
-        </div>
-        {% endif %}
-
-        {% if jd_analysis.skills_gap %}
-        <div class="suggestion">
-            <strong>Address the Skills Gap:</strong>
-            The JD mentions {{ jd_analysis.skills_gap | length }} skill(s) not found in your resume.
-            If you have these skills, add them to your Skills section and demonstrate them in a project bullet.
-        </div>
-        {% endif %}
-
-        {% if jd_analysis.match_percentage | float >= 60 %}
-        <div class="suggestion">
-            <strong>Quantify Your Matched Keywords:</strong>
-            You have a solid keyword match. Make sure the bullets containing matched keywords
-            also include hard numbers (e.g., "500+ users", "40% faster") to reinforce credibility.
-        </div>
-        {% endif %}
-
-    {% else %}
-
-        <!-- ── No JD Provided ── -->
-        <div class="no-jd-box">
-            <div class="no-jd-icon">📋</div>
-            <div class="no-jd-title">No Job Description Provided</div>
-            <div class="no-jd-tip">
-                To get a personalised keyword match score, paste or upload the job description
-                in the Analyzer before running your scan.
-                <br><br>
-                This report will show matched/missing keywords, semantic similarity, and
-                tailored improvement suggestions based on the specific role.
-            </div>
-        </div>
-
+    </div>
     {% endif %}
 
-    <div class="footer">
-        <span>Generated by ATS Resume Scorer</span>
-        <span>Report 3 of 4 — JD Match Analysis</span>
+    <!-- ── Missing Keywords ── -->
+    {% if jd_analysis.missing_keywords %}
+    <h2 class="section-title">Missing Target Keywords (Add These)</h2>
+    <div>
+        {% for kw in jd_analysis.missing_keywords[:14] %}
+        <span class="pill pill-missing">✗ {{ kw }}</span>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <!-- ── Skills Gap ── -->
+    {% if jd_analysis.skills_gap %}
+    <h2 class="section-title">Skills Gap Analysis</h2>
+    {% for skill in jd_analysis.skills_gap[:4] %}
+    <div class="gap-item">Consider adding experience with: <strong>{{ skill }}</strong></div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="tip-box">
+        💡 <strong>ATS Optimization Tip:</strong> Incorporate missing keywords organically into your Work Experience bullets where you have practical knowledge. Avoid keyword stuffing.
+    </div>
+    {% else %}
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:20px; text-align:center; border-radius:6px; color:#64748b; font-size:10px;">
+        No target job description was provided for this evaluation. Paste a JD in the web app to view keyword matching and skill gap benchmarks.
+    </div>
+    {% endif %}
+
+    <!-- ── Footer ── -->
+    <table class="footer">
+        <tr>
+            <td>AI-Powered ATS Resume Analyzer</td>
+            <td style="text-align:right;">Page 4 of Executive Report</td>
+        </tr>
+    </table>
 
 </body>
 </html>

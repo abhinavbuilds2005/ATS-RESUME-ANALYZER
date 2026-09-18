@@ -4,279 +4,308 @@
     <meta charset="UTF-8">
     <title>ATS Resume Score Report</title>
     <style>
-        /* ── Page & Typography ── */
+        @page {
+            size: letter;
+            margin: 12mm 15mm 12mm 15mm;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             color: #1e293b;
             margin: 0;
-            padding: 40px 50px;
-            line-height: 1.6;
-            background: #fff;
+            padding: 0;
+            font-size: 10px;
+            line-height: 1.35;
         }
 
-        /* ── Page Header ── */
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 3px solid #1e293b;
-            padding-bottom: 14px;
-            margin-bottom: 32px;
+        /* ── Header Bar ── */
+        table.page-header {
+            width: 100%;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
         }
-        .page-header .report-label {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #64748b;
-        }
-        .page-header .date {
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        /* ── Report Title ── */
-        .report-title {
-            font-size: 30px;
-            font-weight: 900;
-            color: #0f172a;
-            margin: 0 0 30px 0;
-            letter-spacing: -0.5px;
-        }
-
-        /* ── Overall Score Box ── */
-        .score-section {
-            text-align: center;
-            margin-bottom: 36px;
-        }
-        .score-label {
-            font-size: 13px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #475569;
-            margin-bottom: 8px;
-        }
-        .score-number {
-            font-size: 80px;
-            font-weight: 900;
-            line-height: 1;
-            letter-spacing: -3px;
-        }
-        .score-denom {
-            font-size: 36px;
-            font-weight: 400;
-            color: #94a3b8;
-            letter-spacing: -1px;
-        }
-        .score-interpretation {
-            font-size: 15px;
-            color: #475569;
-            margin-top: 10px;
-            font-style: italic;
-        }
-
-        /* ── Section Headings ── */
-        h2 {
-            font-size: 16px;
+        .report-label {
+            font-size: 8px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            color: #334155;
-            margin: 32px 0 16px 0;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #e2e8f0;
+            color: #64748b;
+        }
+        .report-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 2px 0 0 0;
+        }
+        .header-date {
+            font-size: 9px;
+            color: #64748b;
+            text-align: right;
         }
 
-        /* ── Score Breakdown Table with Progress Bars ── */
-        .breakdown-row {
-            display: flex;
-            align-items: center;
+        /* ── Scorecard Hero Table ── */
+        table.scorecard-table {
+            width: 100%;
             margin-bottom: 14px;
-            gap: 14px;
+            border-collapse: collapse;
         }
-        .breakdown-label {
-            width: 160px;
-            font-size: 13px;
+        .score-box-td {
+            width: 34%;
+            vertical-align: top;
+            padding-right: 12px;
+        }
+        .score-card-inner {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        .score-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .score-val {
+            font-size: 42px;
+            font-weight: 900;
+            line-height: 1;
+            margin: 4px 0;
+        }
+        .score-max {
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+        .tier-badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-top: 4px;
+        }
+        .tier-green { background: #dcfce7; color: #15803d; }
+        .tier-amber { background: #fef3c7; color: #b45309; }
+        .tier-red   { background: #fee2e2; color: #b91c1c; }
+        .score-summary-text {
+            font-size: 9px;
+            color: #475569;
+            margin-top: 6px;
+            line-height: 1.3;
+        }
+
+        /* ── Dimension Breakdown ── */
+        .breakdown-td {
+            width: 66%;
+            vertical-align: top;
+        }
+        table.breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table.breakdown-table td {
+            padding: 3px 0;
+        }
+        .dim-name {
+            font-size: 10px;
             font-weight: 600;
             color: #334155;
-            flex-shrink: 0;
+            width: 38%;
         }
-        .breakdown-bar-wrap {
-            flex: 1;
-            background: #f1f5f9;
-            border-radius: 4px;
-            height: 10px;
-            overflow: hidden;
-        }
-        .breakdown-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        .bar-green  { background: #16a34a; }
-        .bar-amber  { background: #d97706; }
-        .bar-red    { background: #dc2626; }
-        .breakdown-score {
-            width: 60px;
-            font-size: 13px;
-            font-weight: 700;
-            text-align: right;
-            flex-shrink: 0;
-            color: #1e293b;
-        }
-        .breakdown-sublabel {
-            font-size: 11px;
+        .dim-sub {
+            font-size: 8px;
             color: #94a3b8;
             font-weight: 400;
             display: block;
         }
+        .dim-bar-wrap {
+            width: 44%;
+            padding: 0 6px;
+        }
+        .dim-bar-bg {
+            background: #e2e8f0;
+            height: 7px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .dim-bar-fill {
+            height: 7px;
+            border-radius: 3px;
+        }
+        .dim-score {
+            font-size: 10px;
+            font-weight: 700;
+            text-align: right;
+            color: #0f172a;
+            width: 18%;
+        }
 
-        /* ── Strengths ── */
-        .strength-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            margin-bottom: 10px;
-            padding: 10px 14px;
+        /* ── Section Headings ── */
+        h2.section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #0f172a;
+            margin: 10px 0 6px 0;
+            padding-bottom: 3px;
+            border-bottom: 1.5px solid #cbd5e1;
+        }
+
+        /* ── Strengths & Priorities ── */
+        .strength-bullet {
+            padding: 4px 8px;
             background: #f0fdf4;
-            border-left: 4px solid #16a34a;
-            border-radius: 0 6px 6px 0;
-            font-size: 13px;
+            border-left: 3px solid #16a34a;
+            border-radius: 0 4px 4px 0;
+            margin-bottom: 4px;
+            font-size: 9.5px;
             color: #14532d;
         }
-        .strength-item::before { content: "✓"; font-weight: 700; flex-shrink: 0; }
-
-        /* ── Critical Issues ── */
-        .issue-card {
-            border-left: 4px solid #dc2626;
+        .priority-card {
+            padding: 5px 8px;
             background: #fef2f2;
-            border-radius: 0 8px 8px 0;
-            padding: 14px 18px;
-            margin-bottom: 14px;
+            border-left: 3px solid #dc2626;
+            border-radius: 0 4px 4px 0;
+            margin-bottom: 4px;
+            font-size: 9.5px;
         }
-        .issue-title {
-            font-size: 14px;
+        .priority-title {
             font-weight: 700;
             color: #991b1b;
-            margin: 0 0 6px 0;
         }
-        .issue-meta {
-            font-size: 12px;
-            color: #7f1d1d;
-            margin: 0 0 8px 0;
-        }
-        .issue-fix {
-            font-size: 12px;
-            color: #047857;
-            background: #ecfdf5;
-            padding: 8px 12px;
-            border-radius: 4px;
-            margin-top: 8px;
+        .priority-fix {
+            color: #475569;
+            margin-top: 2px;
+            font-size: 9px;
         }
 
         /* ── Footer ── */
         .footer {
-            margin-top: 48px;
-            padding-top: 16px;
+            margin-top: 14px;
+            padding-top: 6px;
             border-top: 1px solid #e2e8f0;
-            font-size: 11px;
+            font-size: 8px;
             color: #94a3b8;
-            display: flex;
-            justify-content: space-between;
+            width: 100%;
         }
     </style>
 </head>
 <body>
 
-    <!-- ── Page Header ── -->
-    <div class="page-header">
-        <div>
-            <div class="report-label">ATS Resume Score Report</div>
-        </div>
-        <div class="date">{{ timestamp | format_date }}</div>
-    </div>
+    <!-- ── Header ── -->
+    <table class="page-header">
+        <tr>
+            <td>
+                <div class="report-label">Executive ATS Evaluation</div>
+                <div class="report-title">ATS Resume Score Report</div>
+            </td>
+            <td class="header-date">
+                Report Date: {{ timestamp | format_date }}<br>
+                Overall Score: {{ overall_score | safe_num }}/100
+            </td>
+        </tr>
+    </table>
 
-    <h1 class="report-title">ATS Resume Score Report</h1>
+    <!-- ── Hero Scorecard + Dimensions Table ── -->
+    <table class="scorecard-table">
+        <tr>
+            <td class="score-box-td">
+                <div class="score-card-inner">
+                    <div class="score-label">Overall ATS Score</div>
+                    <div class="score-val" style="color: {{ score_color }};">
+                        {{ overall_score | safe_num }}<span class="score-max">/100</span>
+                    </div>
+                    {% if overall_score >= 80 %}
+                        <span class="tier-badge tier-green">Excellent Fit</span>
+                    {% elif overall_score >= 60 %}
+                        <span class="tier-badge tier-amber">Moderate Fit</span>
+                    {% else %}
+                        <span class="tier-badge tier-red">Needs Optimization</span>
+                    {% endif %}
+                    <div class="score-summary-text">
+                        {% if interpretation %}
+                            {{ interpretation }}
+                        {% elif overall_score >= 80 %}
+                            Strong ATS readiness with high structural and keyword compliance.
+                        {% elif overall_score >= 60 %}
+                            Good foundation. Targeted tweaks will boost ranking score.
+                        {% else %}
+                            Multiple structural and keyword gaps detected before applying.
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+            <td class="breakdown-td">
+                <table class="breakdown-table">
+                    {% set rows = [
+                        ('Formatting & Layout', component_scores.formatting, 20, component_pct.formatting, 'Structure, standard headers, bullet formats'),
+                        ('Keywords & Skills', component_scores.keywords, 25, component_pct.keywords, 'Industry skills density and matching'),
+                        ('Content & Impact', component_scores.content, 25, component_pct.content, 'Action verbs and quantifiable metrics'),
+                        ('Skill Validation', component_scores.skill_validation, 15, component_pct.skill_validation, 'Skills substantiated by project experience'),
+                        ('ATS Compatibility', component_scores.ats_compatibility, 15, component_pct.ats_compatibility, 'Parsing cleanliness, single-column alignment')
+                    ] %}
+                    {% for label, score, max_score, pct, sublabel in rows %}
+                    {% set bar_color = '#16a34a' if pct >= 75 else ('#d97706' if pct >= 50 else '#dc2626') %}
+                    <tr>
+                        <td class="dim-name">
+                            {{ label }}
+                            <span class="dim-sub">{{ sublabel }}</span>
+                        </td>
+                        <td class="dim-bar-wrap">
+                            <div class="dim-bar-bg">
+                                <div class="dim-bar-fill" style="width: {{ pct }}%; background: {{ bar_color }};"></div>
+                            </div>
+                        </td>
+                        <td class="dim-score">{{ score | safe_num }}/{{ max_score }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </td>
+        </tr>
+    </table>
 
-    <!-- ── Overall Score ── -->
-    <div class="score-section">
-        <div class="score-label">Overall ATS Score</div>
-        <div>
-            <span class="score-number" style="color: {{ score_color }};">
-                {{ "%.0f" | format(overall_score) }}
-            </span>
-            <span class="score-denom">/100</span>
-        </div>
-        {% if interpretation %}
-        <div class="score-interpretation">{{ interpretation }}</div>
-        {% else %}
-            {% if overall_score >= 80 %}
-            <div class="score-interpretation">Great! Your resume should perform well with most ATS systems.</div>
-            {% elif overall_score >= 60 %}
-            <div class="score-interpretation">Good start. A few improvements will significantly boost your score.</div>
-            {% else %}
-            <div class="score-interpretation">Your resume needs work before applying. Follow the recommendations.</div>
-            {% endif %}
-        {% endif %}
-    </div>
-
-    <!-- ── Score Breakdown ── -->
-    <h2>Score Breakdown</h2>
-
-    {% set rows = [
-        ('Formatting',          component_scores.formatting,        20, component_pct.formatting,        'Structure, section headers, bullet points'),
-        ('Keywords & Skills',   component_scores.keywords,          25, component_pct.keywords,          'Keyword density and relevance'),
-        ('Content Quality',     component_scores.content,           25, component_pct.content,           'Action verbs, metrics, achievements'),
-        ('Skill Validation',    component_scores.skill_validation,  15, component_pct.skill_validation,  'Skills backed by project evidence'),
-        ('ATS Compatibility',   component_scores.ats_compatibility, 15, component_pct.ats_compatibility, 'Clean formatting, no parsing blockers'),
-    ] %}
-
-    {% for label, score, max_score, pct, sublabel in rows %}
-    {% set bar_class = 'bar-green' if pct >= 75 else ('bar-amber' if pct >= 50 else 'bar-red') %}
-    <div class="breakdown-row">
-        <div class="breakdown-label">
-            {{ label }}
-            <span class="breakdown-sublabel">{{ sublabel }}</span>
-        </div>
-        <div class="breakdown-bar-wrap">
-            <div class="breakdown-bar-fill {{ bar_class }}" style="width: {{ pct }}%;"></div>
-        </div>
-        <div class="breakdown-score">{{ "%.0f" | format(score) }}/{{ max_score }}</div>
-    </div>
-    {% endfor %}
-
-    <!-- ── Strengths ── -->
-    <h2>Strengths</h2>
+    <!-- ── Key Strengths ── -->
+    <h2 class="section-title">Key Strengths Detected</h2>
     {% if strengths %}
-        {% for s in strengths %}
-        <div class="strength-item">{{ s }}</div>
+        {% for s in strengths[:4] %}
+        <div class="strength-bullet"><strong>✓</strong> {{ s }}</div>
         {% endfor %}
     {% else %}
-    <p style="color:#64748b; font-size:13px;">No major strengths detected. Work through the recommendations to build them.</p>
+        <div class="strength-bullet">Standard contact information and readable resume structure detected.</div>
     {% endif %}
 
-    <!-- ── Critical Issues ── -->
-    <h2>Critical Issues</h2>
+    <!-- ── High Priority Focus Areas ── -->
+    <h2 class="section-title">Critical High-Priority Adjustments</h2>
     {% if high_priority %}
-        {% for issue in high_priority %}
-        <div class="issue-card">
-            <div class="issue-title">{{ issue.issue_title }}</div>
-            <div class="issue-meta">{{ issue.explanation }}</div>
-            <div class="issue-fix"><strong>Fix:</strong> {{ issue.how_to_fix }}</div>
+        {% for issue in high_priority[:3] %}
+        <div class="priority-card">
+            <span class="priority-title">⚠ {{ issue.issue_title }}:</span>
+            {{ issue.explanation }}
+            {% if issue.how_to_fix %}
+            <div class="priority-fix"><strong>Recommended Fix:</strong> {{ issue.how_to_fix }}</div>
+            {% endif %}
         </div>
         {% endfor %}
     {% else %}
-    <p style="color:#64748b; font-size:13px; background:#f0fdf4; padding:12px; border-radius:6px;">
-        No critical issues found. Review medium-priority items in the recommendations report.
-    </p>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 10px; border-radius:4px; font-size:9.5px;">
+            ✓ No critical high-priority blockers detected. Follow recommendations on next page to refine your ranking.
+        </div>
     {% endif %}
 
     <!-- ── Footer ── -->
-    <div class="footer">
-        <span>Generated by ATS Resume Scorer</span>
-        <span>Report 1 of 4 — Score Summary</span>
-    </div>
+    <table class="footer">
+        <tr>
+            <td>AI-Powered ATS Resume Analyzer</td>
+            <td style="text-align:right;">Page 1 of Executive Report</td>
+        </tr>
+    </table>
 
 </body>
 </html>

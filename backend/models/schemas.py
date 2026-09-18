@@ -27,10 +27,10 @@ class IssueDetail(BaseModel):
     severity_level: str
     ats_impact: str
     explanation: str
-    where_it_appears: str
-    how_to_fix: str
+    where_it_appears: str = ""
+    how_to_fix: str = ""
     action_items: List[str] = Field(default_factory=list)
-    example_improvement: str
+    example_improvement: str = ""
 
 class AnalysisResponse(BaseModel):
     ATS_score: float
